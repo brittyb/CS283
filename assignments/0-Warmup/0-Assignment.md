@@ -38,4 +38,8 @@ Please provide answers to these questions using markdown notation and place them
 https://github.com/brittyb/CS283
 4. Briefly describe what you want to get out of this class.
 
-5. Briefly describe any concerns you might be having with being successful in this class (if any).
+I want to learn fundamentals that will help me in my career. I want to understand why things work the way they do to become a better computer scientist.
+
+6. Briefly describe any concerns you might be having with being successful in this class (if any).
+   
+C has been a difficult language for me. I will also have to balance multiple challenging CS courses, so time management on assignments will be difficult.
