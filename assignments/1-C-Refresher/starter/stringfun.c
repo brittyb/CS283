@@ -16,7 +16,8 @@ int  setup_buff(char *, char *, int);
 //prototypes for functions to handle required functionality
 int  count_words(char *, int, int);
 int  reverse_string(char*, int, int);
-
+int  word_print(char*, int, int);
+int  word_replace(char*, int, int, char*, char*);
 //add additional prototypes here
 
 
@@ -28,7 +29,7 @@ int setup_buff(char *buff, char *user_str, int len){
     char current_char = user_str[i];
     char last_char = ' ';
     while(current_char != '\0'){
-	if(buff_index > 49){
+	if(buff_index > len - 1){
 		return -1;
 	}
 	if(last_char != ' ' && last_char != '\t'){
@@ -47,11 +48,11 @@ int setup_buff(char *buff, char *user_str, int len){
 	i++;
 	current_char = user_str[i];
     }
-    if(buff_index < 50){
+    if(buff_index < len){
 	if(buff[buff_index - 1] == ' ' || buff[buff_index - 1] == '\t'){
 		buff[buff_index - 1] = '.';
 	}
-	for(buff_index; buff_index < 50; buff_index++){
+	for(buff_index; buff_index < len; buff_index++){
 		buff[buff_index] = '.';
 	}
     }
@@ -149,6 +150,71 @@ int word_print(char *buff, int len, int str_len){
 	return 0;
 }
 
+int word_replace(char *buff, int len, int str_len, char *word_to_replace, char *new_word){
+	
+	int old_word_length = 0;
+	while (word_to_replace[old_word_length] != '\0') {
+        	old_word_length++;
+    	}
+	int new_word_length = 0;
+	while (new_word[new_word_length] != '\0') {
+                new_word_length++;
+        }
+	
+	int word_index = -1;
+	for(int i = 0; i < str_len; i++){
+		if(i + new_word_length < str_len){
+			for(int j = 0; j < old_word_length; j++){
+				if(buff[j + i] != word_to_replace[j]){
+					break;
+				}
+				if(j == old_word_length - 1){
+					word_index = i;
+					break;
+				}
+			}	
+		}
+		
+	
+	}
+
+	if(word_index == -1){
+		return -1;
+	}
+       	int current_char_to_copy;
+       	char temp_buff[len];
+	memcpy(temp_buff, buff, len);
+	int new_str_len = str_len - old_word_length + new_word_length;
+	if(new_str_len > len){
+		new_str_len = len;
+	}
+	int current_new_len = 0;
+        for(int i = 0; i < len; i++){
+		if(i == word_index){
+			for(int j = 0; j < new_word_length; j++){
+				if(i+j < len){
+					
+					buff[i+j] = new_word[j];
+					current_new_len++;
+					
+				}
+			}
+			i += old_word_length;
+		}
+		buff[current_new_len] = temp_buff[i];
+		current_new_len++;
+
+	}
+	while(current_new_len <= len){
+		buff[current_new_len - 1] = '.';
+		current_new_len++;
+	}	
+
+	return 0;
+	
+	
+}
+
 //ADD OTHER HELPER FUNCTIONS HERE FOR OTHER REQUIRED PROGRAM OPTIONS
 
 int main(int argc, char *argv[]){
@@ -228,6 +294,19 @@ int main(int argc, char *argv[]){
 
 	  case 'w':
 	    rc = word_print(buff, BUFFER_SZ, user_str_len);
+	   
+	    break;
+	  case 'x':
+	    if(argc < 5){
+	    printf("Please enter a word to search for and a word you would like to replace it with\n");
+	    exit(1);
+	    }
+
+	    rc = word_replace(buff, BUFFER_SZ, user_str_len, argv[3], argv[4]);
+	    if(rc == -1){
+		printf("Word not found\n");
+		exit(3);
+	    }
 	    break;
 
         //TODO:  #5 Implement the other cases for 'r' and 'w' by extending
