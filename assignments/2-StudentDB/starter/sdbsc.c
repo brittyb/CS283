@@ -179,9 +179,30 @@ int add_student(int fd, int id, char *fname, char *lname, int gpa){
  *            
  */
 int del_student(int fd, int id){
-    printf(M_NOT_IMPL);
+    student_t student_to_delete = {0};
+    int search_student = get_student(fd, id, &student_to_delete);
+    if(search_student == ERR_DB_FILE){
+	printf(M_ERR_DB_READ);
+	return ERR_DB_FILE;
+    }
+    if(search_student == SRCH_NOT_FOUND){
+	printf(M_STD_NOT_FND_MSG, id);
+	return ERR_DB_OP;
+    }
+    int offset = id * STUDENT_RECORD_SIZE;
 
-    return NOT_IMPLEMENTED_YET;
+        
+    if(lseek(fd, offset, SEEK_SET) == -1){
+        printf(M_ERR_DB_READ);
+        return ERR_DB_FILE;
+    }
+    int write_result = write(fd, &EMPTY_STUDENT_RECORD, STUDENT_RECORD_SIZE);
+    if(write_result == -1){
+	printf(M_ERR_DB_WRITE);
+	return ERR_DB_FILE;
+    }
+    printf(M_STD_DEL_MSG, id);
+    return NO_ERROR;
 }
 
 /*
@@ -209,8 +230,33 @@ int del_student(int fd, int id){
  *            
  */
 int count_db_records(int fd){
-    printf(M_NOT_IMPL);
-    return NOT_IMPLEMENTED_YET;
+    int counter = 0;
+    int offset = STUDENT_RECORD_SIZE;
+    student_t student_buff = {0};
+    if(lseek(fd, offset, SEEK_SET) == -1){
+        printf(M_ERR_DB_READ);
+        return ERR_DB_FILE;
+    }
+    int read_result = read(fd, &student_buff, STUDENT_RECORD_SIZE);
+    while(read_result != 0){
+	if(read_result == -1){
+		printf(M_ERR_DB_READ);
+		return ERR_DB_FILE;
+	}
+	offset += STUDENT_RECORD_SIZE;
+        if (memcmp(&student_buff, &EMPTY_STUDENT_RECORD, STUDENT_RECORD_SIZE) != 0) {
+    		counter++;
+	}
+	read_result = read(fd, &student_buff, STUDENT_RECORD_SIZE);	
+    }
+    if(counter == 0){
+	printf(M_DB_EMPTY);
+    }
+    if(counter > 0){
+	printf(M_DB_RECORD_CNT, counter);
+    }
+    
+    return counter;
 }
 
 /*
@@ -247,8 +293,35 @@ int count_db_records(int fd){
  *            
  */
 int print_db(int fd){
-    printf(M_NOT_IMPL);
-    return NOT_IMPLEMENTED_YET;
+    int counter = 0;
+    
+    int offset = STUDENT_RECORD_SIZE;
+    student_t student_buff = {0};
+    if(lseek(fd, offset, SEEK_SET) == -1){
+        printf(M_ERR_DB_READ);
+        return ERR_DB_FILE;
+    }
+    int read_result = read(fd, &student_buff, STUDENT_RECORD_SIZE);
+    while(read_result != 0){
+        if(read_result == -1){
+                printf(M_ERR_DB_READ);
+                return ERR_DB_FILE;
+        }
+        offset += STUDENT_RECORD_SIZE;
+        if (memcmp(&student_buff, &EMPTY_STUDENT_RECORD, STUDENT_RECORD_SIZE) != 0) {
+		counter++;
+		if(counter == 1){
+			printf(STUDENT_PRINT_HDR_STRING, "ID", "FIRST NAME", "LAST_NAME", "GPA");
+		}
+		float calculated_gpa_from_student = student_buff.gpa / 100.0;
+                printf(STUDENT_PRINT_FMT_STRING, student_buff.id, student_buff.fname, student_buff.lname, calculated_gpa_from_student);
+        }
+        read_result = read(fd, &student_buff, STUDENT_RECORD_SIZE);
+    }
+    if(counter == 0){
+	printf(M_DB_EMPTY);
+    }
+    return NO_ERROR;
 }
 
 /*
