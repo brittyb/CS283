@@ -60,21 +60,29 @@ int open_db(char *dbFile, bool should_truncate){
  *  console:  Does not produce any console I/O used by other functions
  */
 int get_student(int fd, int id, student_t *s){
-    int offset = id * sizeof(student_t);
+    int offset = id * STUDENT_RECORD_SIZE;
+    student_t student_buff = {0};
     int lseek_result = lseek(fd, offset, SEEK_SET);
     if(lseek_result == -1){
 	return ERR_DB_FILE;
     }else{
-	int read_result = read(fd, s, offset);
+	int read_result = read(fd, &student_buff, STUDENT_RECORD_SIZE);
 	if(read_result == -1){
 		return ERR_DB_FILE;
-	}else{
-		student_t zero_student = {0};
-		if (memcmp(s, &zero_student, sizeof(student_t)) == 0) {
-    			return SRCH_NOT_FOUND;
-		}
-		return NO_ERROR;
 	}
+	
+	if (memcmp(&student_buff, &EMPTY_STUDENT_RECORD, STUDENT_RECORD_SIZE) == 0) {
+    		return SRCH_NOT_FOUND;
+	}else{
+		s->id = student_buff.gpa;
+		s->gpa = student_buff.gpa;
+		strcpy(s->fname, student_buff.fname);
+		strcpy(s->lname, student_buff.lname);
+		
+	}
+	
+	return NO_ERROR;
+	
     }
     
 }
@@ -109,29 +117,43 @@ int add_student(int fd, int id, char *fname, char *lname, int gpa){
     if(validate_range(id, gpa) == EXIT_FAIL_ARGS){
 	    return ERR_DB_OP;
     }
-
-    student_t student_search;
-    int search_result = get_student(fd, id, &student_search);
-    if(search_result = NO_ERROR){
-	printf(M_ERR_DB_ADD_DUP, id);
-	return ERR_DB_OP;
-    }else if(search_result == ERR_DB_FILE){
+    int offset = id * STUDENT_RECORD_SIZE;
+    if(lseek(fd, offset, SEEK_SET) == -1){
+        printf(M_ERR_DB_READ);
+        return ERR_DB_FILE;
+    }
+    student_t student_buff = {0};
+    int read_result = read(fd, &student_buff, STUDENT_RECORD_SIZE);
+    if(read_result == -1){
 	printf(M_ERR_DB_READ);
-	return ERR_DB_FILE;
-    }else{
+        return ERR_DB_FILE;
+    }
+    
+    if(memcmp(&student_buff, &EMPTY_STUDENT_RECORD, STUDENT_RECORD_SIZE)== 0){
+	if(lseek(fd, offset, SEEK_SET) == -1){
+            printf(M_ERR_DB_READ);
+            return ERR_DB_FILE;
+        }
+    
+    
 	student_t student_to_add;
 	student_to_add.id = id;
 	strcpy(student_to_add.fname, fname);
 	strcpy(student_to_add.lname, lname);
 	student_to_add.gpa = gpa;
-	int write_result = write(fd, (char*)&student_to_add, sizeof(student_to_add));
+	int write_result = write(fd, &student_to_add, STUDENT_RECORD_SIZE);
 	if(write_result == -1){
 		printf(M_ERR_DB_WRITE);
 		return ERR_DB_FILE;
 	}
 	printf(M_STD_ADDED, id);
 	return NO_ERROR;
+    }else{
+	printf(M_ERR_DB_ADD_DUP, id);
+        return ERR_DB_OP;
     }
+    printf(M_STD_ADDED, id);
+    return NO_ERROR;
 }
 
 /*
@@ -258,7 +280,13 @@ int print_db(int fd){
  *            
  */
 void print_student(student_t *s){
-    printf(M_NOT_IMPL);
+    if(s == NULL || s->id == 0){
+	printf(M_ERR_STD_PRINT);
+	return;
+    }
+    float gpa_float = s->gpa / 100.0;
+    printf(STUDENT_PRINT_HDR_STRING, "ID", "FIRST NAME", "LAST_NAME", "GPA");
+    printf(STUDENT_PRINT_FMT_STRING, s->id, s->fname, s->lname, gpa_float);
 }
 
 /*
