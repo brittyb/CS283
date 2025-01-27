@@ -22,7 +22,8 @@
  *             
  */
 int open_db(char *dbFile, bool should_truncate){
-    // Set permissions: rw-rw----
+    // Set permissions: rw-rw----:
+    //
     // see sys/stat.h for constants
     mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
 
@@ -59,7 +60,23 @@ int open_db(char *dbFile, bool should_truncate){
  *  console:  Does not produce any console I/O used by other functions
  */
 int get_student(int fd, int id, student_t *s){
-    return NOT_IMPLEMENTED_YET;
+    int offset = id * sizeof(student_t);
+    int lseek_result = lseek(fd, offset, SEEK_SET);
+    if(lseek_result == -1){
+	return ERR_DB_FILE;
+    }else{
+	int read_result = read(fd, s, offset);
+	if(read_result == -1){
+		return ERR_DB_FILE;
+	}else{
+		student_t zero_student = {0};
+		if (memcmp(s, &zero_student, sizeof(student_t)) == 0) {
+    			return SRCH_NOT_FOUND;
+		}
+		return NO_ERROR;
+	}
+    }
+    
 }
 
 /*
@@ -88,8 +105,33 @@ int get_student(int fd, int id, student_t *s){
  *            
  */
 int add_student(int fd, int id, char *fname, char *lname, int gpa){
-    printf(M_NOT_IMPL);
-    return NOT_IMPLEMENTED_YET;
+    
+    if(validate_range(id, gpa) == EXIT_FAIL_ARGS){
+	    return ERR_DB_OP;
+    }
+
+    student_t student_search;
+    int search_result = get_student(fd, id, &student_search);
+    if(search_result = NO_ERROR){
+	printf(M_ERR_DB_ADD_DUP, id);
+	return ERR_DB_OP;
+    }else if(search_result == ERR_DB_FILE){
+	printf(M_ERR_DB_READ);
+	return ERR_DB_FILE;
+    }else{
+	student_t student_to_add;
+	student_to_add.id = id;
+	strcpy(student_to_add.fname, fname);
+	strcpy(student_to_add.lname, lname);
+	student_to_add.gpa = gpa;
+	int write_result = write(fd, (char*)&student_to_add, sizeof(student_to_add));
+	if(write_result == -1){
+		printf(M_ERR_DB_WRITE);
+		return ERR_DB_FILE;
+	}
+	printf(M_STD_ADDED, id);
+	return NO_ERROR;
+    }
 }
 
 /*
@@ -116,6 +158,7 @@ int add_student(int fd, int id, char *fname, char *lname, int gpa){
  */
 int del_student(int fd, int id){
     printf(M_NOT_IMPL);
+
     return NOT_IMPLEMENTED_YET;
 }
 
