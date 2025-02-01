@@ -74,7 +74,7 @@ int get_student(int fd, int id, student_t *s){
 	if (memcmp(&student_buff, &EMPTY_STUDENT_RECORD, STUDENT_RECORD_SIZE) == 0) {
     		return SRCH_NOT_FOUND;
 	}else{
-		s->id = student_buff.gpa;
+		s->id = student_buff.id;
 		s->gpa = student_buff.gpa;
 		strcpy(s->fname, student_buff.fname);
 		strcpy(s->lname, student_buff.lname);
@@ -308,14 +308,14 @@ int print_db(int fd){
                 return ERR_DB_FILE;
         }
         offset += STUDENT_RECORD_SIZE;
-        if (memcmp(&student_buff, &EMPTY_STUDENT_RECORD, STUDENT_RECORD_SIZE) != 0) {
+        if(memcmp(&student_buff, &EMPTY_STUDENT_RECORD, STUDENT_RECORD_SIZE) != 0){
 		counter++;
 		if(counter == 1){
-			printf(STUDENT_PRINT_HDR_STRING, "ID", "FIRST NAME", "LAST_NAME", "GPA");
+			printf(STUDENT_PRINT_HDR_STRING, "ID", "FIRST_NAME", "LAST_NAME", "GPA");
 		}
 		float calculated_gpa_from_student = student_buff.gpa / 100.0;
-                printf(STUDENT_PRINT_FMT_STRING, student_buff.id, student_buff.fname, student_buff.lname, calculated_gpa_from_student);
-        }
+        	printf(STUDENT_PRINT_FMT_STRING, student_buff.id, student_buff.fname, student_buff.lname, calculated_gpa_from_student);
+	}
         read_result = read(fd, &student_buff, STUDENT_RECORD_SIZE);
     }
     if(counter == 0){
