@@ -101,12 +101,11 @@ Please answer the following questions and submit in your repo for the second ass
 
     - Please explain why the file size reported by the `ls` command was 128 bytes after adding student with ID=1, 256 after adding student with ID=3, and 4160 after adding the student with ID=64? 
 
-        > **ANSWER:** _start here_
+        > **ANSWER:** ls shows the file size including holes that do not yet have students in them. After adding ID=64 the file size is 4160 bytes because there are holes with no students from 4-62.
 
     -   Why did the total storage used on the disk remain unchanged when we added the student with ID=1, ID=3, and ID=63, but increased from 4K to 8K when we added the student with ID=64? 
 
-        > **ANSWER:** _start here_
-
+        > **ANSWER:** This is because the block size is 4k. After ID=1 it does not use all 4k. 4k (or 4 kilobytes/4096 bytes) is not exceeded until student 64 is added. 63 students with 64 bytes per student is 4032, which is less than 4096. At ID=4 4160 bytes are used, which is greater than the 4096 bytes in 4k. 4160 bytes are used insead of 64*64 = 4096 bytes because of sparse files and allocating extra space.
     - Now lets add one more student with a large student ID number  and see what happens:
 
         ```bash
@@ -118,4 +117,4 @@ Please answer the following questions and submit in your repo for the second ass
         ```
         We see from above adding a student with a very large student ID (ID=99999) increased the file size to 6400000 as shown by `ls` but the raw storage only increased to 12K as reported by `du`.  Can provide some insight into why this happened?
 
-        > **ANSWER:**  _start here_
+        > **ANSWER:**  The gap between 1 and 64 is not as large as the gap between 64 and 999999. du does not include the holes in the file with no students in this case because that gap with no students is very large.
