@@ -5,7 +5,7 @@ Please answer the following questions and submit in your repo for the second ass
 
 1. In this assignment I asked you provide an implementation for the `get_student(...)` function because I think it improves the overall design of the database application.   After you implemented your solution do you agree that externalizing `get_student(...)` into it's own function is a good design strategy?  Briefly describe why or why not.
 
-    > **Answer**:  _start here_
+    > **Answer**:  Extrnalizing get_student(...) to its own function is good design strategy because it allowed me to test the add functionality and verify that it worked. After adding a student I needed a function to verify by getting the student, and after deleting a student I was able to reuse the function to check that the student was not found.
 
 2. Another interesting aspect of the `get_student(...)` function is how its function prototype requires the caller to provide the storage for the `student_t` structure:
 
@@ -39,7 +39,7 @@ Please answer the following questions and submit in your repo for the second ass
     ```
     Can you think of any reason why the above implementation would be a **very bad idea** using the C programming language?  Specifically, address why the above code introduces a subtle bug that could be hard to identify at runtime? 
 
-    > **ANSWER:** _start here_
+    > **ANSWER:** The malloc is inside the function, so the memory address returned with &student may no longer exist once exiting the function. However, this is not always the case which makes it hard to identify at runtime
 
 3. Another way the `get_student(...)` function could be implemented is as follows:
 
@@ -72,8 +72,7 @@ Please answer the following questions and submit in your repo for the second ass
     ```
     In this implementation the storage for the student record is allocated on the heap using `malloc()` and passed back to the caller when the function returns. What do you think about this alternative implementation of `get_student(...)`?  Address in your answer why it work work, but also think about any potential problems it could cause.  
     
-    > **ANSWER:** _start here_  
-
+    > **ANSWER:** This works better because it does not return a memory address and does not leave a dangling pointer. However, one potential problem is freeing the memory later.
 
 4. Lets take a look at how storage is managed for our simple database. Recall that all student records are stored on disk using the layout of the `student_t` structure (which has a size of 64 bytes).  Lets start with a fresh database by deleting the `student.db` file using the command `rm ./student.db`.  Now that we have an empty database lets add a few students and see what is happening under the covers.  Consider the following sequence of commands:
 
