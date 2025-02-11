@@ -55,27 +55,50 @@ int remove_whitespace(char *str)
 	return 0;
 }
 
+void get_exe_and_args(char *cmd, command_list_t *clist)
+{
+	char *saveptr;
+	char *exe_token = strtok_r(cmd, " ", &saveptr);
+	char *arg_token = strtok_r(NULL, "", &saveptr);
+	 
+	//printf("exe: %s args: %s\n", exe_token, arg_token);
+	strcpy(clist->commands[clist->num].exe, exe_token);
+	if(arg_token != NULL)
+	{
+		strcpy(clist->commands[clist->num].args, arg_token);
+	}
+	
+}
+
 int build_cmd_list(char *cmd_line, command_list_t *clist)
 {
-    char * token = strtok(cmd_line, PIPE_STRING);
-    while(token != NULL)
+    memset(clist, 0, sizeof(command_list_t));
+    char * cmd_token = strtok(cmd_line, PIPE_STRING);
+    while(cmd_token != NULL)
     {
-	printf(" %s\n", token);
-	if(token != NULL)
-	{
-		if(clist->num >= CMD_MAX){
-			return ERR_TOO_MANY_COMMANDS;
-		}
-		printf("Before removing whitespace: %s\n", token);
-		remove_whitespace(token);	
-		printf("After removing whitespace: %s\n", token);
-		if(strlen(token) == 0){
-			printf(CMD_WARN_NO_CMD);
-			return WARN_NO_CMDS;
-		}
-		
+	
+	//printf("cmd token %s\n", cmd_token);
+	
+	if(clist->num >= CMD_MAX){
+		//printf("Too many commands\n");
+		return ERR_TOO_MANY_COMMANDS;
+	}
+	//printf("Before removing whitespace: %s\n", cmd_token);
+	remove_whitespace(cmd_token);	
+	//printf("After removing whitespace: %s\n", cmd_token);
+	if(strlen(cmd_token) == 0 || strlen(cmd_line) == 0){
+		return WARN_NO_CMDS;
 	}	
-	token = strtok(NULL, PIPE_STRING);
+	get_exe_and_args(cmd_token, clist);
+	if(clist->num >= CMD_MAX)
+	{
+		return ERR_TOO_MANY_COMMANDS;
+	}	
+	clist->num++;
+		
+	
+	cmd_token = strtok(NULL, PIPE_STRING);
+	
     }
     return 2;
 }

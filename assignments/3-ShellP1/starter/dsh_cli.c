@@ -44,6 +44,19 @@
  *
  *  See the provided test cases for output expectations.
  */
+void print_command(command_list_t clist)
+{
+	int i;
+	for(i = 0; i < clist.num; i++)
+	{
+		printf("<%i>%s ", (i+1), clist.commands[i].exe);
+		if(strlen(clist.commands[i].args) > 0)
+		{
+			printf("[%s]", clist.commands[i].args);
+		}
+		printf("\n");
+	}
+}
 int main()
 {
     char cmd_buff[SH_CMD_MAX];
@@ -58,12 +71,28 @@ int main()
 		break;
 	}
 	cmd_buff[strcspn(cmd_buff, "\n")] = '\0';
+	if(strcmp(cmd_buff, "") == 0)
+	{
+		printf(CMD_WARN_NO_CMD);
+		continue;
+	}
 	if(strcmp(cmd_buff, EXIT_CMD) == 0) 
 	{
+		
 		exit(0);
 	}
 	rc = build_cmd_list(cmd_buff, &clist);
-		
+	if(rc == ERR_TOO_MANY_COMMANDS)
+	{
+		printf(CMD_ERR_PIPE_LIMIT, CMD_MAX);
+		continue;
+	
+	}else if(rc == WARN_NO_CMDS){
+		printf(CMD_WARN_NO_CMD);
+		continue;
+	}
+        printf(CMD_OK_HEADER, clist.num);
+	print_command(clist);	
     }
     
     return OK;
