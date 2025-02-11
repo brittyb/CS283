@@ -1,15 +1,16 @@
 1. In this assignment I suggested you use `fgets()` to get user input in the main while loop. Why is `fgets()` a good choice for this application?
 
-    > **Answer**:  _start here_
+    > **Answer**: fgets allows a maximum number of characters to be read. This means that we can restrict the input to never go over SH_CMD_MAX.
 
 2. You needed to use `malloc()` to allocte memory for `cmd_buff` in `dsh_cli.c`. Can you explain why you needed to do that, instead of allocating a fixed-size array?
 
-    > **Answer**:  _start here_
+    > **Answer**: using malloc() prevents stack overflow because it is stored on the heap instead. Using malloc also
+    > allows for dynamic memory allocation and avoids wasted space.
 
 
 3. In `dshlib.c`, the function `build_cmd_list(`)` must trim leading and trailing spaces from each command before storing it. Why is this necessary? If we didn't trim spaces, what kind of issues might arise when executing commands in our shell?
 
-    > **Answer**:  _start here_
+    > **Answer**:  When checking what command is being executed extra spaces can interfere. "   cmd" is not the same as "cmd"
 
 4. For this question you need to do some research on STDIN, STDOUT, and STDERR in Linux. We've learned this week that shells are "robust brokers of input and output". Google _"linux shell stdin stdout stderr explained"_ to get started.
 
