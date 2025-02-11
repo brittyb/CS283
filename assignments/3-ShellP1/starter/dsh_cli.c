@@ -59,7 +59,7 @@ void print_command(command_list_t clist)
 }
 int main()
 {
-    char cmd_buff[SH_CMD_MAX];
+    char *cmd_buff= malloc(sizeof(char) * SH_CMD_MAX);
     int rc = 0;
     command_list_t clist;
     while(1)
@@ -94,6 +94,6 @@ int main()
         printf(CMD_OK_HEADER, clist.num);
 	print_command(clist);	
     }
-    
+    free(cmd_buff);
     return OK;
 }
