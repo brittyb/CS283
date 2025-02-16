@@ -82,8 +82,7 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff)
 		}else{
 			end_position = position + strcspn(cmd_line + position, " ");
 		}	
-	
-		add_argv(cmd_line, cmd_buff, start_position, end_position);
+		add_argv(cmd_line, cmd_buff, start_position, end_position);	
 		position = end_position + strspn(cmd_line + end_position, " ");
 		count++;
 	}	    
@@ -93,9 +92,27 @@ int initialize_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff)
 {
 	cmd_buff->argc = 0;
 	int length = strlen(cmd_line);
-	cmd_buff->_cmd_buffer = malloc((length + 1) * sizeof(char));
-	strcpy(cmd_buff->_cmd_buffer, cmd_line);
 	return 1;
+}
+
+int add_cmd_buffer(cmd_buff_t *cmd_buff)
+{
+	int buffer_length = 0;
+	for(int i = 0; i < cmd_buff->argc; i++)
+	{	
+		buffer_length += strlen(cmd_buff->argv[i]) + 1; // plus one for spaces
+	}
+	cmd_buff->_cmd_buffer = malloc((buffer_length + 1) * sizeof(char));
+	for(int i = 0; i < cmd_buff->argc; i++)
+	{
+		strcat(cmd_buff->_cmd_buffer, cmd_buff->argv[i]);
+		if( i == cmd_buff->argc - 1)
+		{
+			cmd_buff->_cmd_buffer[buffer_length - 1] = '\0'; //last arg added, add null terminator
+		}else{
+			strcat(cmd_buff->_cmd_buffer, " "); //not last arg added, add space
+		}
+	}
 }
 
 int free_cmd_buff(cmd_buff_t *cmd_buff)
@@ -106,6 +123,22 @@ int free_cmd_buff(cmd_buff_t *cmd_buff)
 		free(cmd_buff->argv[i]);
 	}
 	free(cmd_buff);
+}
+
+int execute_command(cmd_buff_t *cmd_buff)
+{
+	char *command_type = cmd_buff->argv[0];
+	if(strcmp(command_type, "echo") == 0)
+	{
+		if(cmd_buff->argc != 2)
+		{
+			//not enough arguments
+		}else{
+			printf("%.*s\n", (int)strlen(cmd_buff->argv[1]) - 2, cmd_buff->argv[1] + 1);
+		}
+	}
+
+	return 0;
 }
 
 /*
@@ -186,6 +219,8 @@ int exec_local_cmd_loop()
 	remove_whitespace(cmd_buff);
 	initialize_cmd_buff(cmd_buff, cmd);
 	rc = build_cmd_buff(cmd_buff, cmd);
+	add_cmd_buffer(cmd);
+	rc = execute_command(cmd);
 	print_cmd_buff(cmd);
 	if(rc == ERR_TOO_MANY_COMMANDS)
 	{
