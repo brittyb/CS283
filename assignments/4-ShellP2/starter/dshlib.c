@@ -46,12 +46,7 @@ int remove_whitespace(char *str)
 
 int add_argv(char *cmd_line, cmd_buff_t *cmd_buff, int start_index, int end_index)
 {
-	if(cmd_buff == NULL){
-		printf("cmd buff is null\n");
-	}
 
-
-	printf("Adding arg\n");
 	if(cmd_buff->argc >= CMD_ARGV_MAX)
 	{
 		//TODO: handle too many args
@@ -64,7 +59,7 @@ int add_argv(char *cmd_line, cmd_buff_t *cmd_buff, int start_index, int end_inde
 		printf("arg too long\n");
 		return -1;
 	}
-	cmd_buff->argv[cmd_buff->argc - 1] = malloc((length + 1) * sizeof(char));
+	cmd_buff->argv[cmd_buff->argc] = malloc((length + 1) * sizeof(char));
 	//TODO: handle malloc errors
 	strncpy(cmd_buff->argv[cmd_buff->argc], cmd_line + start_index, length);
 	cmd_buff->argc++;
@@ -79,15 +74,19 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff)
         int count = 0;	
 	while(position < strlen(cmd_line) && count < 10)
 	{
-		start_position = position; 
-		end_position = position + strcspn(cmd_line + position, " ");
+		start_position = position;
+	        if(cmd_line[start_position] == '"')
+		{
+			position++;
+			end_position = position + 1 + strcspn(cmd_line + position, "\"");
+		}else{
+			end_position = position + strcspn(cmd_line + position, " ");
+		}	
+	
 		add_argv(cmd_line, cmd_buff, start_position, end_position);
-		printf("new str: %s\n", (cmd_line + position));
 		position = end_position + strspn(cmd_line + end_position, " ");
 		count++;
-	}	
-    
-	
+	}	    
 }
 
 int initialize_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff)
