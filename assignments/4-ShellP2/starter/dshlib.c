@@ -7,6 +7,8 @@
 #include <fcntl.h>
 #include <sys/wait.h>
 #include "dshlib.h"
+#include <unistd.h>
+#include <linux/limits.h>
 
 //This function is for debugging purposes
 void print_cmd_buff(cmd_buff_t *cmd_buff)
@@ -137,6 +139,27 @@ int execute_command(cmd_buff_t *cmd_buff)
 			printf("%.*s\n", (int)strlen(cmd_buff->argv[1]) - 2, cmd_buff->argv[1] + 1);
 		}
 	}
+	if(strcmp(command_type, "pwd") == 0)
+	{
+		char cwd[PATH_MAX];
+   		if (getcwd(cwd, sizeof(cwd)) != NULL) {
+       			printf("Current working dir: %s\n", cwd);
+   		} else { 
+			printf("getcwd error\n");
+       			return 0;
+			//TODO: handle error
+   		}
+	}
+	if(strcmp(command_type, "cd") == 0)
+	{
+		if(cmd_buff->argc > 2)
+		{
+			//TODO: too many arguments, handle this
+		}
+		if(cmd_buff->argc == 2){ //do nothing if less than 2
+			chdir(cmd_buff->argv[1]); //TODO: see any errors this may produce
+		}
+	}
 
 	return 0;
 }
@@ -208,7 +231,8 @@ int exec_local_cmd_loop()
 	}
 	if(strcmp(cmd_buff, EXIT_CMD) == 0) 
 	{
-			
+		free_cmd_buff(cmd);
+		free(cmd_buff);	
 		exit(0);
 	}
 	if(strcmp(cmd_buff, "dragon") == 0)
