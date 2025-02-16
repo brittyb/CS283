@@ -40,10 +40,10 @@ int remove_whitespace(char *str)
 		end_index--;
 	}
 	int new_len = end_index + 1 - start_index;
-
+	if(str == NULL || start_index > strlen(str)){ return ERR_MEMORY; }
 	memmove(str, str + start_index, new_len);
 	str[new_len] = '\0';
-	return 0;
+	return OK;
 }
 
 int add_argv(char *cmd_line, cmd_buff_t *cmd_buff, int start_index, int end_index)
@@ -51,21 +51,17 @@ int add_argv(char *cmd_line, cmd_buff_t *cmd_buff, int start_index, int end_inde
 
 	if(cmd_buff->argc >= CMD_ARGV_MAX)
 	{
-		//TODO: handle too many args
-		printf("too many args\n");
-		return -1;
+		return ERR_CMD_OR_ARGS_TOO_BIG;
 	}
 	int length = end_index - start_index;
 	if(length >= ARG_MAX){
-		//TODO: handle arg too long
-		printf("arg too long\n");
-		return -1;
+		return ERR_CMD_OR_ARGS_TOO_BIG;
 	}
 	cmd_buff->argv[cmd_buff->argc] = malloc((length + 1) * sizeof(char));
-	//TODO: handle malloc errors
+	if(cmd_buff->argv[cmd_buff->argc] == NULL) { return ERR_MEMORY;}
 	strncpy(cmd_buff->argv[cmd_buff->argc], cmd_line + start_index, length);
 	cmd_buff->argc++;
-	return 1;
+	return OK;
 }
 
 int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff)
@@ -90,12 +86,6 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff)
 	}	    
 }
 
-int initialize_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff)
-{
-	cmd_buff->argc = 0;
-	int length = strlen(cmd_line);
-	return 1;
-}
 
 int add_cmd_buffer(cmd_buff_t *cmd_buff)
 {
@@ -105,6 +95,7 @@ int add_cmd_buffer(cmd_buff_t *cmd_buff)
 		buffer_length += strlen(cmd_buff->argv[i]) + 1; // plus one for spaces
 	}
 	cmd_buff->_cmd_buffer = malloc((buffer_length + 1) * sizeof(char));
+	if(cmd_buff->_cmd_buffer == NULL){ return ERR_MEMORY; }
 	for(int i = 0; i < cmd_buff->argc; i++)
 	{
 		strcat(cmd_buff->_cmd_buffer, cmd_buff->argv[i]);
@@ -117,53 +108,68 @@ int add_cmd_buffer(cmd_buff_t *cmd_buff)
 	}
 }
 
-int free_cmd_buff(cmd_buff_t *cmd_buff)
+int free_cmd_buff_and_args(cmd_buff_t *cmd_buff)
 {
 	free(cmd_buff->_cmd_buffer);
 	for(int i = 0; i < cmd_buff->argc; i++)
 	{
 		free(cmd_buff->argv[i]);
 	}
-	free(cmd_buff);
+	
 }
 
-int execute_command(cmd_buff_t *cmd_buff)
+Built_In_Cmds exec_bic(cmd_buff_t *cmd_buff, Built_In_Cmds cmd)
 {
-	char *command_type = cmd_buff->argv[0];
-	if(strcmp(command_type, "echo") == 0)
+	if(cmd == BI_CMD_CD)
 	{
-		if(cmd_buff->argc != 2)
-		{
-			//not enough arguments
-		}else{
-			printf("%.*s\n", (int)strlen(cmd_buff->argv[1]) - 2, cmd_buff->argv[1] + 1);
-		}
+		if(cmd_buff->argc > 2){ return ERR_CMD_ARGS_BAD;}
+                if(cmd_buff->argc == 2){ //do nothing if less than 2
+                        chdir(cmd_buff->argv[1]); //TODO: see any errors this may produce
+			return BI_EXECUTED;
+                }	
 	}
-	if(strcmp(command_type, "pwd") == 0)
-	{
-		char cwd[PATH_MAX];
-   		if (getcwd(cwd, sizeof(cwd)) != NULL) {
-       			printf("Current working dir: %s\n", cwd);
-   		} else { 
-			printf("getcwd error\n");
-       			return 0;
-			//TODO: handle error
-   		}
-	}
-	if(strcmp(command_type, "cd") == 0)
-	{
-		if(cmd_buff->argc > 2)
-		{
-			//TODO: too many arguments, handle this
-		}
-		if(cmd_buff->argc == 2){ //do nothing if less than 2
-			chdir(cmd_buff->argv[1]); //TODO: see any errors this may produce
-		}
-	}
-
-	return 0;
+	if(cmd == BI_CMD_EXIT) {return BI_CMD_EXIT; }
+	if(cmd == BI_CMD_DRAGON){  } //TODO; implement dragon
+	if(cmd == BI_RC) { }// TODO: implement rc
 }
 
+Built_In_Cmds exec_non_bic(cmd_buff_t *cmd)
+{
+	int f_result, c_result;
+	f_result = fork();
+    	if (f_result < 0){
+        	perror("fork error");
+        	return ERR_EXEC_CMD;
+    	}
+
+    	if (f_result == 0){
+        	int rc;
+
+        	rc = execvp(cmd->argv[0], cmd->argv);
+        	if (rc < 0){
+            		perror("fork error");
+            		return ERR_EXEC_CMD;
+        	}
+	}else{
+
+		wait(&c_result);
+		int child_exit_code = WEXITSTATUS(c_result);
+	}
+
+	return BI_EXECUTED;
+
+}
+
+
+
+Built_In_Cmds match_command(const char *input)
+{
+    if (strcmp(input, EXIT_CMD) == 0) { return BI_CMD_EXIT;}
+    if (strcmp(input, "cd") == 0) {return BI_CMD_CD; }
+    if (strcmp(input, "dragon") == 0) {return BI_CMD_DRAGON;}
+    if (strcmp(input, "rc") == 0) {return BI_RC;}
+    return BI_NOT_BI;
+}
 /*
  * Implement your exec_local_cmd_loop function by building a loop that prompts the 
  * user for input.  Use the SH_PROMPT constant from dshlib.h and then
@@ -211,10 +217,13 @@ int exec_local_cmd_loop()
 {
     
     cmd_buff_t *cmd = malloc(sizeof(cmd_buff_t));
+    if(cmd == NULL) { return ERR_MEMORY; }
+    cmd->argc = 0;
     char *cmd_buff= malloc(sizeof(char) * SH_CMD_MAX);
+    if(cmd_buff == NULL) { return ERR_MEMORY; }
     int rc = 0;
 
-    //TODO: see if there are any potential errors with memset
+  
     while(1)
     {
 	printf("%s", SH_PROMPT);
@@ -224,42 +233,35 @@ int exec_local_cmd_loop()
 		break;
 	}
 	cmd_buff[strcspn(cmd_buff, "\n")] = '\0';
-	if(strcmp(cmd_buff, "") == 0)
-	{
-		printf(CMD_WARN_NO_CMD);
-		continue;
-	}
-	if(strcmp(cmd_buff, EXIT_CMD) == 0) 
-	{
-		free_cmd_buff(cmd);
-		free(cmd_buff);	
-		exit(0);
-	}
-	if(strcmp(cmd_buff, "dragon") == 0)
-	{
-		//print_dragon();
-		continue;
-	}
-	remove_whitespace(cmd_buff);
-	initialize_cmd_buff(cmd_buff, cmd);
-	rc = build_cmd_buff(cmd_buff, cmd);
-	add_cmd_buffer(cmd);
-	rc = execute_command(cmd);
-	print_cmd_buff(cmd);
-	if(rc == ERR_TOO_MANY_COMMANDS)
-	{
-		printf(CMD_ERR_PIPE_LIMIT, CMD_MAX);
-		continue;
+	if(strcmp(cmd_buff, "") == 0){ printf(CMD_WARN_NO_CMD); continue;}
 	
-	}else if(rc == WARN_NO_CMDS){
-		printf(CMD_WARN_NO_CMD);
+	remove_whitespace(cmd_buff);
+	if(strlen(cmd_buff) == 0){ printf(CMD_WARN_NO_CMD); continue; }
+	rc = build_cmd_buff(cmd_buff, cmd);
+	add_cmd_buffer(cmd); //TODO: only do this if cmd was populated successfully
+	Built_In_Cmds bic = match_command(cmd->argv[0]);
+	
+	if(bic == BI_CMD_EXIT){ break; }
+	if(bic != BI_NOT_BI)
+	{
+		exec_bic(cmd, bic);
+	}else{
+		exec_non_bic(cmd);
+	}
+	print_cmd_buff(cmd);
+	cmd->argc = 0;
+	
+
+	if(rc == ERR_TOO_MANY_COMMANDS)
+	{ 
+		printf(CMD_ERR_PIPE_LIMIT, CMD_MAX); 
+		continue;	
+	}else if(rc == WARN_NO_CMDS){ 
+		printf(CMD_WARN_NO_CMD); 
 		continue;
 	}
         	
     }
-    print_cmd_buff(cmd);
-    free_cmd_buff(cmd);
-    free(cmd_buff);
     return OK;
     // TODO IMPLEMENT MAIN LOOP
 
@@ -270,5 +272,7 @@ int exec_local_cmd_loop()
 
     // TODO IMPLEMENT if not built-in command, fork/exec as an external command
     // for example, if the user input is "ls -l", you would fork/exec the command "ls" with the arg "-l"
-
+	free_cmd_buff_and_args(cmd);
+	free(cmd);
+	free(cmd_buff);
 }
