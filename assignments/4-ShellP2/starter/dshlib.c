@@ -8,62 +8,20 @@
 #include <sys/wait.h>
 #include "dshlib.h"
 
-void print_command(command_list_t clist)
+//This function is for debugging purposes
+void print_cmd_buff(cmd_buff_t *cmd_buff)
 {
-	int i;
-	for(i = 0; i < clist.num; i++)
+	if(cmd_buff == NULL){
+		printf("cmd_buff is null\n");
+		return;
+	}
+	printf("argc: %d\n", cmd_buff->argc);
+	printf("_cmd_buffer: %s\n", cmd_buff->_cmd_buffer);
+	for(int i = 0; i < cmd_buff->argc; i++)
 	{
-		printf("<%i>%s ", (i+1), clist.commands[i].exe);
-		if(strlen(clist.commands[i].args) > 0)
-		{
-			printf("[%s]", clist.commands[i].args);
-		}
-		printf("\n");
+		printf("arg %d: %s\n", (i+1), cmd_buff->argv[i]);
 	}
 }
-
-void print_dragon()
-{
-	printf("                                                                        @%%%%%%%%                        \n");
-	printf("                                                                     %%%%%%%%%%%%                         \n");
-    	printf("                                                                    %%%%%%%%%%%%                          \n");
-    	printf("                                                                 %% %%%%%%%%%%%%%%           @              \n");
-    	printf("                                                                %%%%%%%%%%%%%%%%%%%%        %%%%%%%%%%%%%%           \n");
-    	printf("                                       %%%%%%%%%%%%%%  %%%%%%%%@         %%%%%%%%%%%%%%%%%%%%%%%%@    %%%%%%%%%%%%  @%%%%%%%%        \n");
-    	printf("                                  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%          \n");
-    	printf("                                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   %%%%%%%%%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%           \n");
-    	printf("                               %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%     %%%%%%            \n");
-    	printf("                             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@ @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%        %%%%            \n");
-    	printf("                            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                \n");
-   	printf("                            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%              \n");
-    	printf("                            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@%%%%%%%%%%%%@              \n");
-    	printf("      %%%%%%%%%%%%%%%%@           %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%      %%%%                \n");
-    	printf("    %%%%%%%%%%%%%%%%%%%%%%%%%%         %%%%@%%%%%%%%%%%%%%%%%%%%%%%%           %%%%%%%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%%%%%%%%%      @%%                \n");
-    	printf("  %%%%%%%%%%%%%%%%%%%%   %%%%%%        %%%%%%%%%%%%%%%%%%%%%%%%%%%%            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                        \n");
-    	printf(" %%%%%%%%%%%%%%%%%%       %%         %%%%%%%%%%%%%%%%%%%%%%%%%%             %%%%%%%%%%%%%%%%%%%%%%%%@%%%%%%%%%%%%%%%%%%%%%%                       \n");
-   	printf("%%%%%%%%%%%%%%%%%%@                %% %%%%%%%%%%%%%%%%%%%%%%%%%%            @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                     \n");
-    	printf("%%%%%%%%%%%%%%%%@                 %%%%@%%%%%%%%%%%%%%%%%%%%%%%%            @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                  \n");
-    	printf("%%%%%%%%%%%%%%@                   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%           %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%              \n");
-    	printf("%%%%%%%%%%%%%%%%%%%%                  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%          %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%      %%%%%%%%  \n");
-    	printf("%%%%%%%%%%%%%%%%%%@                   @%%%%%%%%%%%%%%%%%%%%%%%%%%%%         %%%%%%%%%%%%%%%%%%%%%%%%@ %%%%%%%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   %%%%%%%%%%%%%%%%\n");
-    	printf("%%%%%%%%%%%%%%%%%%%%                  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%        %%%%%%%%%%%%%%%%%%%%%%%%%%      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%%%\n");
-    	printf("%%%%%%%%%%%%%%%%%%@%%%%@                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@       %%%%%%%%%%%%%%%%%%%%%%%%%%%%     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  %%%%\n");
-    	printf(" %%%%%%%%%%%%%%%%%%%%                  %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%@        %%%%%%%%%%%%%%%%%%%%%%%%%%%%   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% %%%%\n");
-    	printf("  %%%%%%%%%%%%%%%%%%%%%%%%  @           %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  %%%%%% \n");
-    	printf("   %%%%%%%%%%%%%%%%%%%%%%%%%% %%%%  %%  %%@ %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%          %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    %%%%%% \n");
-    	printf("    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%           @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    %%%%%%%%%%%%%% \n");
-    	printf("     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%              %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%        %%%%%%   \n");
-    	printf("      @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%               \n");
-    	printf("        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  %%%%%%%%%%%%%%          \n");
-    	printf("           %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                           %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  @%%%%%%%%%%%%%%%%%%         \n");
-    	printf("              %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%           @%%@%%                  @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   %%%%%%        \n");
-    	printf("                  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%        %%%%%%%%%%%%%%%%%%%%                    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    %%         \n");
-    	printf("                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                      %%%%%%%%%%%%%%%%%%%%%%%%%%%%            \n");
-    	printf("                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  %%%%%%%% %%%%%%                      %%%%%%%%%%%%%%%%%%%%  %%%%%%@          \n");
-    	printf("                     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% %%%%%%%%%%%% %%%%                          %%%%%%%%%%%%%%%%%%%%%%%%%%@          \n");    
-    	printf("                                                                                 %%%%%%%%%%%%%%@        \n");
-}
-
 int remove_whitespace(char *str)
 {
 	int start_index = 0;
@@ -86,51 +44,71 @@ int remove_whitespace(char *str)
 	return 0;
 }
 
-void get_exe_and_args(char *cmd, command_list_t *clist)
+int add_argv(char *cmd_line, cmd_buff_t *cmd_buff, int start_index, int end_index)
 {
-	char *saveptr;
-	char *exe_token = strtok_r(cmd, " ", &saveptr);
-	char *arg_token = strtok_r(NULL, "", &saveptr);
-	 
-	//printf("exe: %s args: %s\n", exe_token, arg_token);
-	strcpy(clist->commands[clist->num].exe, exe_token);
-	if(arg_token != NULL)
-	{
-		strcpy(clist->commands[clist->num].args, arg_token);
+	if(cmd_buff == NULL){
+		printf("cmd buff is null\n");
 	}
+
+
+	printf("Adding arg\n");
+	if(cmd_buff->argc >= CMD_ARGV_MAX)
+	{
+		//TODO: handle too many args
+		printf("too many args\n");
+		return -1;
+	}
+	int length = end_index - start_index;
+	if(length >= ARG_MAX){
+		//TODO: handle arg too long
+		printf("arg too long\n");
+		return -1;
+	}
+	cmd_buff->argv[cmd_buff->argc - 1] = malloc((length + 1) * sizeof(char));
+	//TODO: handle malloc errors
+	strncpy(cmd_buff->argv[cmd_buff->argc], cmd_line + start_index, length);
+	cmd_buff->argc++;
+	return 1;
+}
+
+int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff)
+{
+	int start_position = 0;
+	int end_position = 0;
+	int position = strspn(cmd_line, " ");
+        int count = 0;	
+	while(position < strlen(cmd_line) && count < 10)
+	{
+		start_position = position; 
+		end_position = position + strcspn(cmd_line + position, " ");
+		add_argv(cmd_line, cmd_buff, start_position, end_position);
+		printf("new str: %s\n", (cmd_line + position));
+		position = end_position + strspn(cmd_line + end_position, " ");
+		count++;
+	}	
+    
 	
 }
 
-int build_cmd_list(char *cmd_line, command_list_t *clist)
+int initialize_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff)
 {
-    memset(clist, 0, sizeof(command_list_t));
-    char * cmd_token = strtok(cmd_line, PIPE_STRING);
-    while(cmd_token != NULL)
-    {
-	
-	//printf("cmd token %s\n", cmd_token);
-	
-	if(clist->num >= CMD_MAX){
-		//printf("Too many commands\n");
-		return ERR_TOO_MANY_COMMANDS;
-	}
-	//printf("Before removing whitespace: %s\n", cmd_token);
-	remove_whitespace(cmd_token);	
-	//printf("After removing whitespace: %s\n", cmd_token);
-	if(strlen(cmd_token) == 0 || strlen(cmd_line) == 0){
-		return WARN_NO_CMDS;
-	}	
-	get_exe_and_args(cmd_token, clist);
-	if(clist->num >= CMD_MAX)
+	cmd_buff->argc = 0;
+	int length = strlen(cmd_line);
+	cmd_buff->_cmd_buffer = malloc((length + 1) * sizeof(char));
+	strcpy(cmd_buff->_cmd_buffer, cmd_line);
+	return 1;
+}
+
+int free_cmd_buff(cmd_buff_t *cmd_buff)
+{
+	free(cmd_buff->_cmd_buffer);
+	for(int i = 0; i < cmd_buff->argc; i++)
 	{
-		return ERR_TOO_MANY_COMMANDS;
-	}	
-	clist->num++;
-		
-	
-	cmd_token = strtok(NULL, PIPE_STRING);
-	
-    }
+		free(cmd_buff->argv[i]);
+	}
+	free(cmd_buff);
+}
+
 /*
  * Implement your exec_local_cmd_loop function by building a loop that prompts the 
  * user for input.  Use the SH_PROMPT constant from dshlib.h and then
@@ -176,12 +154,12 @@ int build_cmd_list(char *cmd_line, command_list_t *clist)
  */
 int exec_local_cmd_loop()
 {
-    //char *cmd_buff;
-    //int rc = 0;
-    //cmd_buff_t cmd;
+    
+    cmd_buff_t *cmd = malloc(sizeof(cmd_buff_t));
     char *cmd_buff= malloc(sizeof(char) * SH_CMD_MAX);
     int rc = 0;
-    command_list_t clist;
+
+    //TODO: see if there are any potential errors with memset
     while(1)
     {
 	printf("%s", SH_PROMPT);
@@ -198,15 +176,18 @@ int exec_local_cmd_loop()
 	}
 	if(strcmp(cmd_buff, EXIT_CMD) == 0) 
 	{
-		
+			
 		exit(0);
 	}
 	if(strcmp(cmd_buff, "dragon") == 0)
 	{
-		print_dragon();
+		//print_dragon();
 		continue;
 	}
-	rc = build_cmd_list(cmd_buff, &clist);
+	remove_whitespace(cmd_buff);
+	initialize_cmd_buff(cmd_buff, cmd);
+	rc = build_cmd_buff(cmd_buff, cmd);
+	print_cmd_buff(cmd);
 	if(rc == ERR_TOO_MANY_COMMANDS)
 	{
 		printf(CMD_ERR_PIPE_LIMIT, CMD_MAX);
@@ -216,9 +197,10 @@ int exec_local_cmd_loop()
 		printf(CMD_WARN_NO_CMD);
 		continue;
 	}
-        printf(CMD_OK_HEADER, clist.num);
-	print_command(clist);	
+        	
     }
+    print_cmd_buff(cmd);
+    free_cmd_buff(cmd);
     free(cmd_buff);
     return OK;
     // TODO IMPLEMENT MAIN LOOP
@@ -231,5 +213,4 @@ int exec_local_cmd_loop()
     // TODO IMPLEMENT if not built-in command, fork/exec as an external command
     // for example, if the user input is "ls -l", you would fork/exec the command "ls" with the arg "-l"
 
-    return OK;
 }
