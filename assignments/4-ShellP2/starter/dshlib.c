@@ -19,7 +19,7 @@ void print_cmd_buff(cmd_buff_t *cmd_buff)
 	}
 	printf("argc: %d\n", cmd_buff->argc);
 	printf("_cmd_buffer: %s\n", cmd_buff->_cmd_buffer);
-	for(int i = 0; i < cmd_buff->argc; i++)
+	for(int i = 0; i < 9; i++)
 	{
 		printf("arg %d: %s\n", (i+1), cmd_buff->argv[i]);
 	}
@@ -60,6 +60,7 @@ int add_argv(char *cmd_line, cmd_buff_t *cmd_buff, int start_index, int end_inde
 	cmd_buff->argv[cmd_buff->argc] = malloc((length + 1) * sizeof(char));
 	if(cmd_buff->argv[cmd_buff->argc] == NULL) { return ERR_MEMORY;}
 	strncpy(cmd_buff->argv[cmd_buff->argc], cmd_line + start_index, length);
+	cmd_buff->argv[cmd_buff->argc][length] = '\0';
 	cmd_buff->argc++;
 	return OK;
 }
@@ -69,7 +70,8 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff)
 	int start_position = 0;
 	int end_position = 0;
 	int position = strspn(cmd_line, " ");
-        int count = 0;	
+        int count = 0;
+	int rc = OK;	
 	while(position < strlen(cmd_line) && count < 10)
 	{
 		start_position = position;
@@ -80,10 +82,12 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff)
 		}else{
 			end_position = position + strcspn(cmd_line + position, " ");
 		}	
-		add_argv(cmd_line, cmd_buff, start_position, end_position);	
+		rc = add_argv(cmd_line, cmd_buff, start_position, end_position);
+		if(rc != OK){ return rc;}	
 		position = end_position + strspn(cmd_line + end_position, " ");
 		count++;
-	}	    
+	}	   
+       return rc;
 }
 
 
@@ -96,6 +100,7 @@ int add_cmd_buffer(cmd_buff_t *cmd_buff)
 	}
 	cmd_buff->_cmd_buffer = malloc((buffer_length + 1) * sizeof(char));
 	if(cmd_buff->_cmd_buffer == NULL){ return ERR_MEMORY; }
+	cmd_buff->_cmd_buffer[0] = '\0';
 	for(int i = 0; i < cmd_buff->argc; i++)
 	{
 		strcat(cmd_buff->_cmd_buffer, cmd_buff->argv[i]);
@@ -106,6 +111,7 @@ int add_cmd_buffer(cmd_buff_t *cmd_buff)
 			strcat(cmd_buff->_cmd_buffer, " "); //not last arg added, add space
 		}
 	}
+	return OK;
 }
 
 int free_cmd_buff_and_args(cmd_buff_t *cmd_buff)
@@ -115,6 +121,7 @@ int free_cmd_buff_and_args(cmd_buff_t *cmd_buff)
 	{
 		free(cmd_buff->argv[i]);
 	}
+	free(cmd_buff);
 	
 }
 
@@ -126,7 +133,9 @@ Built_In_Cmds exec_bic(cmd_buff_t *cmd_buff, Built_In_Cmds cmd)
                 if(cmd_buff->argc == 2){ //do nothing if less than 2
                         chdir(cmd_buff->argv[1]); //TODO: see any errors this may produce
 			return BI_EXECUTED;
-                }	
+                }else{
+			return BI_EXECUTED;
+		}	
 	}
 	if(cmd == BI_CMD_EXIT) {return BI_CMD_EXIT; }
 	if(cmd == BI_CMD_DRAGON){  } //TODO; implement dragon
@@ -148,7 +157,7 @@ Built_In_Cmds exec_non_bic(cmd_buff_t *cmd)
         	rc = execvp(cmd->argv[0], cmd->argv);
         	if (rc < 0){
             		perror("fork error");
-            		return ERR_EXEC_CMD;
+            		exit(ERR_EXEC_CMD);
         	}
 	}else{
 
@@ -165,10 +174,25 @@ Built_In_Cmds exec_non_bic(cmd_buff_t *cmd)
 Built_In_Cmds match_command(const char *input)
 {
     if (strcmp(input, EXIT_CMD) == 0) { return BI_CMD_EXIT;}
-    if (strcmp(input, "cd") == 0) {return BI_CMD_CD; }
+    if (strcmp(input, "cd") == 0) { return BI_CMD_CD; }
     if (strcmp(input, "dragon") == 0) {return BI_CMD_DRAGON;}
     if (strcmp(input, "rc") == 0) {return BI_RC;}
     return BI_NOT_BI;
+}
+
+int reset_cmd_buff(cmd_buff_t *cmd_buff)
+{
+	for (int i = 0; i < cmd_buff->argc; i++) {
+		free(cmd_buff->argv[i]);
+		cmd_buff->argv[i] = NULL;
+		
+	}
+	
+	cmd_buff->argc = 0;
+	if (cmd_buff->_cmd_buffer) {
+		cmd_buff->_cmd_buffer[0] = '\0';
+	}
+	return OK;
 }
 /*
  * Implement your exec_local_cmd_loop function by building a loop that prompts the 
@@ -238,18 +262,20 @@ int exec_local_cmd_loop()
 	remove_whitespace(cmd_buff);
 	if(strlen(cmd_buff) == 0){ printf(CMD_WARN_NO_CMD); continue; }
 	rc = build_cmd_buff(cmd_buff, cmd);
-	add_cmd_buffer(cmd); //TODO: only do this if cmd was populated successfully
-	Built_In_Cmds bic = match_command(cmd->argv[0]);
 	
+	if(rc == OK){ rc = add_cmd_buffer(cmd);}
+	//print_cmd_buff(cmd);
+	
+	Built_In_Cmds bic = match_command(cmd->argv[0]);	
 	if(bic == BI_CMD_EXIT){ break; }
 	if(bic != BI_NOT_BI)
 	{
 		exec_bic(cmd, bic);
+
 	}else{
 		exec_non_bic(cmd);
 	}
-	print_cmd_buff(cmd);
-	cmd->argc = 0;
+	reset_cmd_buff(cmd);
 	
 
 	if(rc == ERR_TOO_MANY_COMMANDS)
@@ -273,6 +299,5 @@ int exec_local_cmd_loop()
     // TODO IMPLEMENT if not built-in command, fork/exec as an external command
     // for example, if the user input is "ls -l", you would fork/exec the command "ls" with the arg "-l"
 	free_cmd_buff_and_args(cmd);
-	free(cmd);
 	free(cmd_buff);
 }
