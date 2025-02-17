@@ -194,6 +194,20 @@ int reset_cmd_buff(cmd_buff_t *cmd_buff)
 	}
 	return OK;
 }
+int remove_quotes(cmd_buff_t *cmd_buff) 
+{
+	for(int i = 0; i < cmd_buff->argc; i++)
+	{
+		int len = strlen(cmd_buff->argv[i]);
+    		if (len >= 2 && cmd_buff->argv[i][0] == '"' && cmd_buff->argv[i][len - 1] == '"') 
+		{
+        		memmove(cmd_buff->argv[i], cmd_buff->argv[i] + 1, len - 2);
+        		cmd_buff->argv[i][len - 2] = '\0';
+    		}
+	}
+    return 0;
+}
+
 /*
  * Implement your exec_local_cmd_loop function by building a loop that prompts the 
  * user for input.  Use the SH_PROMPT constant from dshlib.h and then
@@ -262,7 +276,7 @@ int exec_local_cmd_loop()
 	remove_whitespace(cmd_buff);
 	if(strlen(cmd_buff) == 0){ printf(CMD_WARN_NO_CMD); continue; }
 	rc = build_cmd_buff(cmd_buff, cmd);
-	
+ 	rc = remove_quotes(cmd);	
 	if(rc == OK){ rc = add_cmd_buffer(cmd);}
 	//print_cmd_buff(cmd);
 	
