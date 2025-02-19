@@ -9,7 +9,7 @@
 #include "dshlib.h"
 #include <unistd.h>
 #include <linux/limits.h>
-
+#include <errno.h>
 //This function is for debugging purposes
 void print_cmd_buff(cmd_buff_t *cmd_buff)
 {
@@ -51,10 +51,11 @@ int add_argv(char *cmd_line, cmd_buff_t *cmd_buff, int start_index, int end_inde
 
 	if(cmd_buff->argc >= CMD_ARGV_MAX)
 	{
-		return ERR_CMD_OR_ARGS_TOO_BIG;
+		return ERR_CMD_ARGS_BAD;
 	}
 	int length = end_index - start_index;
-	if(length >= ARG_MAX){
+
+	if(length >= 256){
 		return ERR_CMD_OR_ARGS_TOO_BIG;
 	}
 	cmd_buff->argv[cmd_buff->argc] = malloc((length + 1) * sizeof(char));
@@ -72,7 +73,7 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff)
 	int position = strspn(cmd_line, " ");
         int count = 0;
 	int rc = OK;	
-	while(position < strlen(cmd_line) && count < 10)
+	while(position < strlen(cmd_line))
 	{
 		start_position = position;
 	        if(cmd_line[start_position] == '"')
@@ -83,9 +84,9 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff)
 			end_position = position + strcspn(cmd_line + position, " ");
 		}	
 		rc = add_argv(cmd_line, cmd_buff, start_position, end_position);
-		if(rc != OK){ return rc;}	
+		if(rc != OK){ break;}	
 		position = end_position + strspn(cmd_line + end_position, " ");
-		count++;
+		
 	}	   
        return rc;
 }
@@ -125,7 +126,7 @@ int free_cmd_buff_and_args(cmd_buff_t *cmd_buff)
 	
 }
 
-Built_In_Cmds exec_bic(cmd_buff_t *cmd_buff, Built_In_Cmds cmd)
+Built_In_Cmds exec_bic(cmd_buff_t *cmd_buff, Built_In_Cmds cmd, int previous_rc)
 {
 	if(cmd == BI_CMD_CD)
 	{
@@ -139,10 +140,10 @@ Built_In_Cmds exec_bic(cmd_buff_t *cmd_buff, Built_In_Cmds cmd)
 	}
 	if(cmd == BI_CMD_EXIT) {return BI_CMD_EXIT; }
 	if(cmd == BI_CMD_DRAGON){  } //TODO; implement dragon
-	if(cmd == BI_RC) { }// TODO: implement rc
+	if(cmd == BI_RC) {printf("%d\n", previous_rc); }
 }
 
-Built_In_Cmds exec_non_bic(cmd_buff_t *cmd)
+Built_In_Cmds exec_non_bic(cmd_buff_t *cmd, int *previous_rc)
 {
 	int f_result, c_result;
 	f_result = fork();
@@ -154,15 +155,22 @@ Built_In_Cmds exec_non_bic(cmd_buff_t *cmd)
     	if (f_result == 0){
         	int rc;
 
+
         	rc = execvp(cmd->argv[0], cmd->argv);
         	if (rc < 0){
-            		perror("fork error");
-            		exit(ERR_EXEC_CMD);
+			rc = errno;
+            		if(rc == ENOENT) { printf("Command not found in PATH\n");}
+                	if(rc == EACCES) { printf("Permission denied\n");}
+                	if(rc == ENOMEM) { printf("No memory\n");}
+                	if(rc == EMFILE) { printf("Too many files open\n");}	
+			exit(rc);
         	}
 	}else{
 
 		wait(&c_result);
-		int child_exit_code = WEXITSTATUS(c_result);
+		int exit_code = WEXITSTATUS(c_result);
+		*previous_rc = exit_code;
+		
 	}
 
 	return BI_EXECUTED;
@@ -194,7 +202,7 @@ int reset_cmd_buff(cmd_buff_t *cmd_buff)
 	}
 	return OK;
 }
-int remove_quotes(cmd_buff_t *cmd_buff) 
+void remove_quotes(cmd_buff_t *cmd_buff) 
 {
 	for(int i = 0; i < cmd_buff->argc; i++)
 	{
@@ -205,7 +213,6 @@ int remove_quotes(cmd_buff_t *cmd_buff)
         		cmd_buff->argv[i][len - 2] = '\0';
     		}
 	}
-    return 0;
 }
 
 /*
@@ -253,7 +260,7 @@ int remove_quotes(cmd_buff_t *cmd_buff)
  */
 int exec_local_cmd_loop()
 {
-    
+    int previous_rc = 0; 
     cmd_buff_t *cmd = malloc(sizeof(cmd_buff_t));
     if(cmd == NULL) { return ERR_MEMORY; }
     cmd->argc = 0;
@@ -276,18 +283,20 @@ int exec_local_cmd_loop()
 	remove_whitespace(cmd_buff);
 	if(strlen(cmd_buff) == 0){ printf(CMD_WARN_NO_CMD); continue; }
 	rc = build_cmd_buff(cmd_buff, cmd);
- 	rc = remove_quotes(cmd);	
-	if(rc == OK){ rc = add_cmd_buffer(cmd);}
+	if(rc != OK) { previous_rc = rc; reset_cmd_buff(cmd); continue; }
+ 	remove_quotes(cmd);	
+	rc = add_cmd_buffer(cmd);
+	if(rc != OK) {previous_rc = rc; reset_cmd_buff(cmd); continue; }
 	//print_cmd_buff(cmd);
 	
 	Built_In_Cmds bic = match_command(cmd->argv[0]);	
 	if(bic == BI_CMD_EXIT){ break; }
 	if(bic != BI_NOT_BI)
 	{
-		exec_bic(cmd, bic);
+		previous_rc = exec_bic(cmd, bic, previous_rc);
 
 	}else{
-		exec_non_bic(cmd);
+		exec_non_bic(cmd, &previous_rc);
 	}
 	reset_cmd_buff(cmd);
 	
@@ -296,9 +305,6 @@ int exec_local_cmd_loop()
 	{ 
 		printf(CMD_ERR_PIPE_LIMIT, CMD_MAX); 
 		continue;	
-	}else if(rc == WARN_NO_CMDS){ 
-		printf(CMD_WARN_NO_CMD); 
-		continue;
 	}
         	
     }
