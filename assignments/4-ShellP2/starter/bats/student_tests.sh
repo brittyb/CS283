@@ -149,3 +149,47 @@ EOF
 
 
 }
+
+@test "cd with more than 2 arguments fails" {
+	current=$(pwd)
+	cd /tmp
+	mkdir -p dir1
+	mkdir -p dir1/dir2
+
+	run "${current}/dsh" <<EOF
+cd dir1 dir2
+rc
+pwd
+EOF
+        stripped_output=$(echo "$output" | tr -d '[:space:]')
+	expected_output="/tmpdsh2>dsh2>-4dsh2>dsh2>cmdloopreturned0"
+        echo "Captured stdout:"
+        echo "Output: $output"
+        echo "Exit Status: $status"
+        echo "${stripped_output} -> ${expected_output}"
+
+
+        [ "$stripped_output" = "$expected_output" ]
+        [ "$status" -eq 0 ]
+
+}
+
+@test "cd to fake dir returns code -4" {
+	current=$(pwd);
+	run ./dsh <<EOF
+cd fakedir
+rc
+pwd
+EOF
+        stripped_output=$(echo "$output" | tr -d '[:space:]')
+        expected_output="${current}dsh2>dsh2>-4dsh2>dsh2>cmdloopreturned0"
+        echo "Captured stdout:"
+        echo "Output: $output"
+        echo "Exit Status: $status"
+        echo "${stripped_output} -> ${expected_output}"
+
+
+        [ "$stripped_output" = "$expected_output" ]
+        [ "$status" -eq 0 ]
+
+}

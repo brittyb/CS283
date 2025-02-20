@@ -51,7 +51,7 @@ int alloc_cmd_buff(cmd_buff_t *cmd_buff);
 int free_cmd_buff(cmd_buff_t *cmd_buff);
 int clear_cmd_buff(cmd_buff_t *cmd_buff);
 int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff);
-
+extern void print_dragon();
 //built in command stuff
 typedef enum {
     BI_CMD_EXIT,
@@ -62,7 +62,7 @@ typedef enum {
     BI_RC,
 } Built_In_Cmds;
 Built_In_Cmds match_command(const char *input); 
-Built_In_Cmds exec_built_in_cmd(cmd_buff_t *cmd);
+Built_In_Cmds exec_built_in_cmd(cmd_buff_t *cmd, Built_In_Cmds bic, int *rc);
 
 //main execution context
 int exec_local_cmd_loop();

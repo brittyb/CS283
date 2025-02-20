@@ -24,11 +24,12 @@ void print_cmd_buff(cmd_buff_t *cmd_buff)
 		printf("arg %d: %s\n", (i+1), cmd_buff->argv[i]);
 	}
 }
+
+// removed leading and trailing whitespace
 int remove_whitespace(char *str)
 {
 	int start_index = 0;
 	int end_index = strlen(str) - 1;
-	int current_index = 0;
 	
 	while(str[start_index] == SPACE_CHAR)
 	{
@@ -40,12 +41,13 @@ int remove_whitespace(char *str)
 		end_index--;
 	}
 	int new_len = end_index + 1 - start_index;
-	if(str == NULL || start_index > strlen(str)){ return ERR_MEMORY; }
+	if(str == NULL || start_index > (int)strlen(str)){ return ERR_MEMORY; }
 	memmove(str, str + start_index, new_len);
 	str[new_len] = '\0';
 	return OK;
 }
 
+// add an individual argument to cmd_buff given its start and end index in the cmd_line
 int add_argv(char *cmd_line, cmd_buff_t *cmd_buff, int start_index, int end_index)
 {
 
@@ -66,14 +68,14 @@ int add_argv(char *cmd_line, cmd_buff_t *cmd_buff, int start_index, int end_inde
 	return OK;
 }
 
+// get the arguments and add them to cmd_buff (being mindful of double quotes)
 int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff)
 {
 	int start_position = 0;
 	int end_position = 0;
 	int position = strspn(cmd_line, " ");
-        int count = 0;
 	int rc = OK;	
-	while(position < strlen(cmd_line))
+	while(position < (int)strlen(cmd_line))
 	{
 		start_position = position;
 	        if(cmd_line[start_position] == '"')
@@ -91,8 +93,8 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff)
        return rc;
 }
 
-
-int add_cmd_buffer(cmd_buff_t *cmd_buff)
+//After getting the arguments, combine them to create a new buffer with no extra spaces
+int alloc_cmd_buffer(cmd_buff_t *cmd_buff)
 {
 	int buffer_length = 0;
 	for(int i = 0; i < cmd_buff->argc; i++)
@@ -115,7 +117,7 @@ int add_cmd_buffer(cmd_buff_t *cmd_buff)
 	return OK;
 }
 
-int free_cmd_buff_and_args(cmd_buff_t *cmd_buff)
+int free_cmd_buff(cmd_buff_t *cmd_buff)
 {
 	free(cmd_buff->_cmd_buffer);
 	for(int i = 0; i < cmd_buff->argc; i++)
@@ -123,24 +125,32 @@ int free_cmd_buff_and_args(cmd_buff_t *cmd_buff)
 		free(cmd_buff->argv[i]);
 	}
 	free(cmd_buff);
-	
+	return 0;	
 }
 
-Built_In_Cmds exec_bic(cmd_buff_t *cmd_buff, Built_In_Cmds cmd, int previous_rc)
+Built_In_Cmds exec_built_in_cmd(cmd_buff_t *cmd_buff, Built_In_Cmds cmd, int *previous_rc)
 {
 	if(cmd == BI_CMD_CD)
 	{
-		if(cmd_buff->argc > 2){ return ERR_CMD_ARGS_BAD;}
-                if(cmd_buff->argc == 2){ //do nothing if less than 2
-                        chdir(cmd_buff->argv[1]); //TODO: see any errors this may produce
-			return BI_EXECUTED;
+		if(cmd_buff->argc > 2){ *previous_rc = ERR_CMD_ARGS_BAD;
+		}else if(cmd_buff->argc == 1){ *previous_rc = OK;  
+		}else if(cmd_buff->argc == 2){
+                        if(chdir(cmd_buff->argv[1]) == 0)
+			{
+				*previous_rc = OK;
+			}else{
+				*previous_rc = ERR_CMD_ARGS_BAD;
+			}
                 }else{
-			return BI_EXECUTED;
-		}	
+			*previous_rc = ERR_CMD_ARGS_BAD;
+		
+		}
+		return BI_EXECUTED;	
 	}
 	if(cmd == BI_CMD_EXIT) {return BI_CMD_EXIT; }
-	if(cmd == BI_CMD_DRAGON){  } //TODO; implement dragon
-	if(cmd == BI_RC) {printf("%d\n", previous_rc); }
+	if(cmd == BI_CMD_DRAGON){ print_dragon(); } 
+	if(cmd == BI_RC) {printf("%d\n", *previous_rc); return BI_EXECUTED; }
+	return BI_NOT_BI;
 }
 
 Built_In_Cmds exec_non_bic(cmd_buff_t *cmd, int *previous_rc)
@@ -188,7 +198,8 @@ Built_In_Cmds match_command(const char *input)
     return BI_NOT_BI;
 }
 
-int reset_cmd_buff(cmd_buff_t *cmd_buff)
+// This function clears existing arguments and sets argc to 0 so that cmd_buff can have new values when the next command is given
+int clear_cmd_buff(cmd_buff_t *cmd_buff)
 {
 	for (int i = 0; i < cmd_buff->argc; i++) {
 		free(cmd_buff->argv[i]);
@@ -202,6 +213,8 @@ int reset_cmd_buff(cmd_buff_t *cmd_buff)
 	}
 	return OK;
 }
+
+// This function removes quotes from arguments before adding it to the _cmd_buffer
 void remove_quotes(cmd_buff_t *cmd_buff) 
 {
 	for(int i = 0; i < cmd_buff->argc; i++)
@@ -281,43 +294,26 @@ int exec_local_cmd_loop()
 	if(strcmp(cmd_buff, "") == 0){ printf(CMD_WARN_NO_CMD); continue;}
 	
 	remove_whitespace(cmd_buff);
-	if(strlen(cmd_buff) == 0){ printf(CMD_WARN_NO_CMD); continue; }
+	if(strlen(cmd_buff) == 0){ printf(CMD_WARN_NO_CMD); rc = WARN_NO_CMDS; continue; }
 	rc = build_cmd_buff(cmd_buff, cmd);
-	if(rc != OK) { previous_rc = rc; reset_cmd_buff(cmd); continue; }
- 	remove_quotes(cmd);	
-	rc = add_cmd_buffer(cmd);
-	if(rc != OK) {previous_rc = rc; reset_cmd_buff(cmd); continue; }
+	if(rc != OK) { previous_rc = rc; clear_cmd_buff(cmd); continue; }
+ 	remove_quotes(cmd); //if one of the args has quotes remove them in the buffer	
+	rc = alloc_cmd_buffer(cmd); //populate _cmd_buffer
+	if(rc != OK) {previous_rc = rc; clear_cmd_buff(cmd); continue; }
 	//print_cmd_buff(cmd);
 	
 	Built_In_Cmds bic = match_command(cmd->argv[0]);	
-	if(bic == BI_CMD_EXIT){ break; }
+	if(bic == BI_CMD_EXIT){ free_cmd_buff(cmd); break; }
 	if(bic != BI_NOT_BI)
 	{
-		previous_rc = exec_bic(cmd, bic, previous_rc);
+		if(exec_built_in_cmd(cmd, bic, &previous_rc) == BI_NOT_BI){ exec_non_bic(cmd, &previous_rc);}
 
 	}else{
 		exec_non_bic(cmd, &previous_rc);
 	}
-	reset_cmd_buff(cmd);
-	
-
-	if(rc == ERR_TOO_MANY_COMMANDS)
-	{ 
-		printf(CMD_ERR_PIPE_LIMIT, CMD_MAX); 
-		continue;	
-	}
+	clear_cmd_buff(cmd);
         	
     }
     return OK;
-    // TODO IMPLEMENT MAIN LOOP
-
-    // TODO IMPLEMENT parsing input to cmd_buff_t *cmd_buff
-
-    // TODO IMPLEMENT if built-in command, execute builtin logic for exit, cd (extra credit: dragon)
-    // the cd command should chdir to the provided directory; if no directory is provided, do nothing
-
-    // TODO IMPLEMENT if not built-in command, fork/exec as an external command
-    // for example, if the user input is "ls -l", you would fork/exec the command "ls" with the arg "-l"
-	free_cmd_buff_and_args(cmd);
-	free(cmd_buff);
+  
 }
