@@ -147,7 +147,7 @@ Built_In_Cmds exec_built_in_cmd(cmd_buff_t *cmd_buff, Built_In_Cmds cmd, int *pr
 		return BI_EXECUTED;	
 	}
 	if(cmd == BI_CMD_EXIT) {return BI_CMD_EXIT; }
-	if(cmd == BI_CMD_DRAGON){ print_dragon(); } 
+	if(cmd == BI_CMD_DRAGON){ print_dragon(); return BI_EXECUTED;} 
 	if(cmd == BI_RC) {printf("%d\n", *previous_rc); return BI_EXECUTED; }
 	return BI_NOT_BI;
 }
@@ -269,19 +269,47 @@ void remove_quotes(cmd_buff_t *cmd_buff)
  *  Standard Library Functions You Might Want To Consider Using (assignment 2+)
  *      fork(), execvp(), exit(), chdir()
  */
-int exec_local_cmd_loop()
+int exec_cmd(char *cmd_buff, cmd_buff_t *cmd, int *previous_rc)
 {
-   int previous_rc = 0; 
-    cmd_buff_t *cmd = malloc(sizeof(cmd_buff_t));
-    if(cmd == NULL) { return ERR_MEMORY; }
-    cmd->argc = 0;
-    char *cmd_buff= malloc(sizeof(char) * SH_CMD_MAX);
-    if(cmd_buff == NULL) { return ERR_MEMORY; }
     int rc = 0;
 
-  
-    while(1)
+
+    cmd_buff[strcspn(cmd_buff, "\n")] = '\0';
+    if(strcmp(cmd_buff, "") == 0){ printf(CMD_WARN_NO_CMD); return rc;}
+    remove_whitespace(cmd_buff);
+    if(strlen(cmd_buff) == 0){ printf(CMD_WARN_NO_CMD); rc = WARN_NO_CMDS; return rc; }
+    rc = build_cmd_buff(cmd_buff, cmd);
+    if(rc != OK) { *previous_rc = rc; clear_cmd_buff(cmd); return rc; }
+    remove_quotes(cmd); //if one of the args has quotes remove them in the buffer
+    rc = alloc_cmd_buffer(cmd); //populate _cmd_buffer
+    if(rc != OK) {*previous_rc = rc; clear_cmd_buff(cmd); return rc; }
+    
+    
+
+    Built_In_Cmds bic = match_command(cmd->argv[0]);
+    if(bic == BI_CMD_EXIT){ free_cmd_buff(cmd); exit(0); }
+    if(bic != BI_NOT_BI)
     {
+           if(exec_built_in_cmd(cmd, bic, previous_rc) == BI_NOT_BI){ exec_non_bic(cmd, previous_rc);
+								       }
+    }else{
+            exec_non_bic(cmd, previous_rc);
+    }
+    
+    clear_cmd_buff(cmd);
+
+    return OK;
+}
+int exec_local_cmd_loop(){
+    char *cmd_buff= malloc(sizeof(char) * SH_CMD_MAX);
+     int rc = 0;
+     int previous_rc = 0;
+     cmd_buff_t *cmd = malloc(sizeof(cmd_buff_t));
+      if(cmd == NULL) { return ERR_MEMORY; }
+      cmd->argc = 0;
+      if(cmd_buff == NULL) { return ERR_MEMORY; }
+        while(1)
+      {
 	printf("%s", SH_PROMPT);
 	if(fgets(cmd_buff, ARG_MAX, stdin) == NULL)
 	{
@@ -289,28 +317,14 @@ int exec_local_cmd_loop()
 		break;
 	}
 	cmd_buff[strcspn(cmd_buff, "\n")] = '\0';
-	if(strcmp(cmd_buff, "") == 0){ printf(CMD_WARN_NO_CMD); continue;}
-	
-	remove_whitespace(cmd_buff);
-	if(strlen(cmd_buff) == 0){ printf(CMD_WARN_NO_CMD); rc = WARN_NO_CMDS; continue; }
-	rc = build_cmd_buff(cmd_buff, cmd);
-	if(rc != OK) { previous_rc = rc; clear_cmd_buff(cmd); continue; }
- 	remove_quotes(cmd); //if one of the args has quotes remove them in the buffer	
-	rc = alloc_cmd_buffer(cmd); //populate _cmd_buffer
-	if(rc != OK) {previous_rc = rc; clear_cmd_buff(cmd); continue; }
-	//print_cmd_buff(cmd);
-	
-	Built_In_Cmds bic = match_command(cmd->argv[0]);	
-	if(bic == BI_CMD_EXIT){ free_cmd_buff(cmd); break; }
-	if(bic != BI_NOT_BI)
+	if(strcmp(cmd_buff, "") == 0)
 	{
-		if(exec_built_in_cmd(cmd, bic, &previous_rc) == BI_NOT_BI){ exec_non_bic(cmd, &previous_rc);}
-
-	}else{
-		exec_non_bic(cmd, &previous_rc);
+		printf(CMD_WARN_NO_CMD);
+		continue;
 	}
-	clear_cmd_buff(cmd);
-        	
+	rc = exec_cmd(cmd_buff, cmd, &previous_rc);
     }
+    free(cmd_buff);
     return OK;
 }
+

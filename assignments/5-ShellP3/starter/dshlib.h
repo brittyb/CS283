@@ -80,7 +80,7 @@ Built_In_Cmds exec_built_in_cmd(cmd_buff_t *cmd, Built_In_Cmds bic, int *rc);
 
 //main execution context
 int exec_local_cmd_loop();
-int exec_cmd(cmd_buff_t *cmd);
+int exec_cmd(char *cmd_buff, cmd_buff_t *cmd, int *previous_rc);
 int execute_pipeline(command_list_t *clist);
 
 
