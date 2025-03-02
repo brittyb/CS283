@@ -304,7 +304,7 @@ int build_cmd_list(char *cmd_line, command_list_t *clist)
 	cmd_token = strtok(NULL, PIPE_STRING);
 	
     }
-    print_clist(clist);
+    //print_clist(clist);
     return OK;
 }
 
@@ -317,13 +317,67 @@ void free_clist(command_list_t *clist)
 		free_cmd_args(&clist->commands[i]);
 	}
 	clist->num = 0;
-	print_clist(clist);
+	//print_clist(clist);
 	free(clist);
 }
 
 int exec_pipe_commands(command_list_t *clist)
 {
+    int num_cmds = clist->num;
+    pid_t pids[num_cmds];
+    int pipes[num_cmds - 1][2];
+    
+    for (int i = 0; i < num_cmds - 1; i++) {
+        if (pipe(pipes[i]) == -1) {
+            perror("pipe");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    for (int i = 0; i < num_cmds; i++)
+    {
+	pids[i] = fork();
+        if (pids[i] == -1) 
+	{
+            perror("fork");
+            exit(EXIT_FAILURE);
+        }
+	if (pids[i] == 0) 
+	{
+            if (i > 0) 
+	    {
+                dup2(pipes[i-1][0], STDIN_FILENO);
+            }
+
 	
+        	if (i < num_cmds - 1) 
+		{
+            		dup2(pipes[i][1], STDOUT_FILENO);
+        	}
+
+           
+		for (int j = 0; j < num_cmds - 1; j++) 
+		{
+            		close(pipes[j][0]);
+            		close(pipes[j][1]);
+        	}
+
+        	execvp(clist->commands[i].argv[0], clist->commands[i].argv);
+        	perror("execvp");
+        	exit(EXIT_FAILURE);
+	}        
+    }
+    for(int i = 0; i < num_cmds - 1; i++) 
+    {
+        close(pipes[i][0]);
+        close(pipes[i][1]);
+    }
+
+    for(int i = 0; i < num_cmds; i++) 
+    {
+        waitpid(pids[i], NULL, 0);
+    }
+    return OK;	
 }
 
 
