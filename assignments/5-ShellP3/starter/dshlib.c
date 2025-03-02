@@ -63,8 +63,7 @@ int add_argv(char *cmd_line, cmd_buff_t *cmd_buff, int start_index, int end_inde
 		return ERR_CMD_ARGS_BAD;
 	}
 	int length = end_index - start_index;
-
-	if(length >= 256){
+	if(length >= ARG_MAX){
 		return ERR_CMD_OR_ARGS_TOO_BIG;
 	}
 	cmd_buff->argv[cmd_buff->argc] = malloc((length + 1) * sizeof(char));
@@ -93,9 +92,9 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff)
 			end_position = position + strcspn(cmd_line + position, " ");
 		}	
 		rc = add_argv(cmd_line, cmd_buff, start_position, end_position);
-		if(rc != OK){ break;}	
-		position = end_position + strspn(cmd_line + end_position, " ");
+		if(rc != OK){ break;}
 		
+		position = end_position + strspn(cmd_line + end_position, " ");
 	}	   
        return rc;
 }
@@ -243,8 +242,6 @@ void remove_quotes(cmd_buff_t *cmd_buff)
 int exec_cmd(char *cmd_buff, cmd_buff_t *cmd, int *previous_rc)
 {
     int rc = 0;
-
-
     cmd_buff[strcspn(cmd_buff, "\n")] = '\0';
     if(strcmp(cmd_buff, "") == 0){ printf(CMD_WARN_NO_CMD); return rc;}
     remove_whitespace(cmd_buff);
@@ -393,7 +390,7 @@ int exec_local_cmd_loop(){
       while(1)
       {
 	printf("%s", SH_PROMPT);
-	if(fgets(cmd_buff, ARG_MAX, stdin) == NULL)
+	if(fgets(cmd_buff, SH_CMD_MAX, stdin) == NULL)
 	{
 		printf("\n");
 		break;
