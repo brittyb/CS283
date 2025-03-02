@@ -23,6 +23,14 @@ void print_cmd_buff(cmd_buff_t *cmd_buff)
 		printf("arg %d: %s\n", (i+1), cmd_buff->argv[i]);
 	}
 }
+// This function is for debugging
+void print_clist(command_list_t *clist)
+{
+	for(int i = 0; i < clist->num; i++)
+	{
+		print_cmd_buff(&clist->commands[i]);
+	}
+}
 
 // removed leading and trailing whitespace
 int remove_whitespace(char *str)
@@ -116,15 +124,21 @@ int alloc_cmd_buffer(cmd_buff_t *cmd_buff)
 	return OK;
 }
 
-int free_cmd_buff(cmd_buff_t *cmd_buff)
+
+
+void free_cmd_args(cmd_buff_t *cmd_buff)
 {
-	free(cmd_buff->_cmd_buffer);
 	for(int i = 0; i < cmd_buff->argc; i++)
 	{
 		free(cmd_buff->argv[i]);
 	}
-	free(cmd_buff);
-	return 0;	
+}
+int free_cmd_buff(cmd_buff_t *cmd_buff)
+{
+	free(cmd_buff->_cmd_buffer);
+	free_cmd_args(cmd_buff);
+	free(cmd_buff);	
+	return OK;
 }
 
 Built_In_Cmds exec_built_in_cmd(cmd_buff_t *cmd_buff, Built_In_Cmds cmd, int *previous_rc)
@@ -203,7 +217,6 @@ int clear_cmd_buff(cmd_buff_t *cmd_buff)
 	for (int i = 0; i < cmd_buff->argc; i++) {
 		free(cmd_buff->argv[i]);
 		cmd_buff->argv[i] = NULL;
-		
 	}
 	
 	cmd_buff->argc = 0;
@@ -226,49 +239,7 @@ void remove_quotes(cmd_buff_t *cmd_buff)
     		}
 	}
 }
-/*
- * Implement your exec_local_cmd_loop function by building a loop that prompts the 
- * user for input.  Use the SH_PROMPT constant from dshlib.h and then
- * use fgets to accept user input.
- * 
- *      while(1){
- *        printf("%s", SH_PROMPT);
- *        if (fgets(cmd_buff, ARG_MAX, stdin) == NULL){
- *           printf("\n");
- *           break;
- *        }
- *        //remove the trailing \n from cmd_buff
- *        cmd_buff[strcspn(cmd_buff,"\n")] = '\0';
- * 
- *        //IMPLEMENT THE REST OF THE REQUIREMENTS
- *      }
- * 
- *   Also, use the constants in the dshlib.h in this code.  
- *      SH_CMD_MAX              maximum buffer size for user input
- *      EXIT_CMD                constant that terminates the dsh program
- *      SH_PROMPT               the shell prompt
- *      OK                      the command was parsed properly
- *      WARN_NO_CMDS            the user command was empty
- *      ERR_TOO_MANY_COMMANDS   too many pipes used
- *      ERR_MEMORY              dynamic memory management failure
- * 
- *   errors returned
- *      OK                     No error
- *      ERR_MEMORY             Dynamic memory management failure
- *      WARN_NO_CMDS           No commands parsed
- *      ERR_TOO_MANY_COMMANDS  too many pipes used
- *   
- *   console messages
- *      CMD_WARN_NO_CMD        print on WARN_NO_CMDS
- *      CMD_ERR_PIPE_LIMIT     print on ERR_TOO_MANY_COMMANDS
- *      CMD_ERR_EXECUTE        print on execution failure of external command
- * 
- *  Standard Library Functions You Might Want To Consider Using (assignment 1+)
- *      malloc(), free(), strlen(), fgets(), strcspn(), printf()
- * 
- *  Standard Library Functions You Might Want To Consider Using (assignment 2+)
- *      fork(), execvp(), exit(), chdir()
- */
+
 int exec_cmd(char *cmd_buff, cmd_buff_t *cmd, int *previous_rc)
 {
     int rc = 0;
@@ -300,6 +271,63 @@ int exec_cmd(char *cmd_buff, cmd_buff_t *cmd, int *previous_rc)
 
     return OK;
 }
+int add_pipe_command(char *cmd, command_list_t *clist)
+{   
+    int rc = 0;
+  //TODO: handle errors for mem allocation 
+     rc = build_cmd_buff(cmd, &clist->commands[clist->num]);
+     rc = alloc_cmd_buffer(&clist->commands[clist->num]);
+    return OK;
+}
+int build_cmd_list(char *cmd_line, command_list_t *clist)
+{
+    char *cmd_token = strtok(cmd_line, PIPE_STRING);
+    while(cmd_token != NULL)
+    {
+	
+	//printf("cmd token %s\n", cmd_token);
+	
+	if(clist->num >= CMD_MAX){
+		printf(CMD_ERR_PIPE_LIMIT, CMD_MAX);
+		return ERR_TOO_MANY_COMMANDS;
+	}
+	//printf("Before removing whitespace: %s\n", cmd_token);
+	remove_whitespace(cmd_token);	
+	//printf("After removing whitespace: %s\n", cmd_token);
+	if(strlen(cmd_token) == 0 || strlen(cmd_line) == 0){
+		return WARN_NO_CMDS;
+	}	
+	add_pipe_command(cmd_token, clist);
+	clist->num++;
+		
+	
+	cmd_token = strtok(NULL, PIPE_STRING);
+	
+    }
+    print_clist(clist);
+    return OK;
+}
+
+void free_clist(command_list_t *clist)
+{
+	for(int i = 0; i < clist->num; i++)
+	{
+		free(clist->commands[i]._cmd_buffer);
+		clist->commands[i]._cmd_buffer = NULL;
+		free_cmd_args(&clist->commands[i]);
+	}
+	clist->num = 0;
+	print_clist(clist);
+	free(clist);
+}
+
+int exec_pipe_commands(command_list_t *clist)
+{
+	
+}
+
+
+
 int exec_local_cmd_loop(){
     char *cmd_buff= malloc(sizeof(char) * SH_CMD_MAX);
      int rc = 0;
@@ -308,7 +336,7 @@ int exec_local_cmd_loop(){
       if(cmd == NULL) { return ERR_MEMORY; }
       cmd->argc = 0;
       if(cmd_buff == NULL) { return ERR_MEMORY; }
-        while(1)
+      while(1)
       {
 	printf("%s", SH_PROMPT);
 	if(fgets(cmd_buff, ARG_MAX, stdin) == NULL)
@@ -322,8 +350,17 @@ int exec_local_cmd_loop(){
 		printf(CMD_WARN_NO_CMD);
 		continue;
 	}
-	rc = exec_cmd(cmd_buff, cmd, &previous_rc);
-    }
+	if(strchr(cmd_buff, PIPE_CHAR) == NULL)
+	{
+		rc = exec_cmd(cmd_buff, cmd, &previous_rc);
+	}else{
+		command_list_t *clist = calloc(1, sizeof(command_list_t));
+            	clist->num = 0;
+		rc = build_cmd_list(cmd_buff, clist);
+		if(rc != OK){ previous_rc = rc; }else {exec_pipe_commands(clist); }
+		free_clist(clist);
+	}
+      }
     free(cmd_buff);
     return OK;
 }
