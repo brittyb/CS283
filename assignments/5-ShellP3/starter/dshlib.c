@@ -35,23 +35,34 @@ void print_clist(command_list_t *clist)
 // removed leading and trailing whitespace
 int remove_whitespace(char *str)
 {
-	int start_index = 0;
-	int end_index = strlen(str) - 1;
-	
-	while(str[start_index] == SPACE_CHAR)
-	{
-		start_index++;
-	}
+    if (str == NULL) {
+        return ERR_MEMORY;
+    }
 
-	while(str[end_index] == SPACE_CHAR)
-	{
-		end_index--;
-	}
-	int new_len = end_index + 1 - start_index;
-	if(str == NULL || start_index > (int)strlen(str)){ return ERR_MEMORY; }
-	memmove(str, str + start_index, new_len);
-	str[new_len] = '\0';
-	return OK;
+    int len = strlen(str);
+    if (len == 0) {
+        return OK;
+    }
+
+    int start_index = 0;
+    int end_index = len - 1;
+
+    while (start_index <= end_index && str[start_index] == SPACE_CHAR) {
+        start_index++;
+    }
+
+    while (end_index >= start_index && str[end_index] == SPACE_CHAR) {
+        end_index--;
+    }
+
+    int new_len = end_index - start_index + 1;
+
+    if (start_index > 0) {
+        memmove(str, str + start_index, new_len);
+    }
+    str[new_len] = '\0';
+
+    return OK;
 }
 
 // add an individual argument to cmd_buff given its start and end index in the cmd_line
@@ -108,6 +119,7 @@ int alloc_cmd_buffer(cmd_buff_t *cmd_buff)
 		buffer_length += strlen(cmd_buff->argv[i]) + 1; // plus one for spaces
 	}
 	cmd_buff->_cmd_buffer = malloc((buffer_length + 1) * sizeof(char));
+	
 	if(cmd_buff->_cmd_buffer == NULL){ return ERR_MEMORY; }
 	cmd_buff->_cmd_buffer[0] = '\0';
 	for(int i = 0; i < cmd_buff->argc; i++)
@@ -134,9 +146,12 @@ void free_cmd_args(cmd_buff_t *cmd_buff)
 }
 int free_cmd_buff(cmd_buff_t *cmd_buff)
 {
+	if (cmd_buff == NULL){ return ERR_MEMORY;}
 	free(cmd_buff->_cmd_buffer);
+	cmd_buff->_cmd_buffer = NULL;
 	free_cmd_args(cmd_buff);
 	free(cmd_buff);	
+	cmd_buff = NULL;
 	return OK;
 }
 
@@ -165,65 +180,7 @@ Built_In_Cmds exec_built_in_cmd(cmd_buff_t *cmd_buff, Built_In_Cmds cmd, int *pr
 	return BI_NOT_BI;
 }
 
-Built_In_Cmds exec_non_bic(cmd_buff_t *cmd, int *previous_rc)
-{
-	int f_result, c_result;
-	f_result = fork();
-    	if (f_result < 0){
-        	perror("fork error");
-        	return ERR_EXEC_CMD;
-    	}
 
-    	if (f_result == 0){
-        	int rc;
-
-
-        	rc = execvp(cmd->argv[0], cmd->argv);
-        	if (rc < 0){
-			rc = errno;
-            		if(rc == ENOENT) { printf("Command not found in PATH\n");}
-                	if(rc == EACCES) { printf("Permission denied\n");}
-                	if(rc == ENOMEM) { printf("No memory\n");}
-                	if(rc == EMFILE) { printf("Too many files open\n");}	
-			exit(rc);
-        	}
-	}else{
-
-		wait(&c_result);
-		int exit_code = WEXITSTATUS(c_result);
-		*previous_rc = exit_code;
-		
-	}
-
-	return BI_EXECUTED;
-
-}
-
-
-
-Built_In_Cmds match_command(const char *input)
-{
-    if (strcmp(input, EXIT_CMD) == 0) { return BI_CMD_EXIT;}
-    if (strcmp(input, "cd") == 0) { return BI_CMD_CD; }
-    if (strcmp(input, "dragon") == 0) {return BI_CMD_DRAGON;}
-    if (strcmp(input, "rc") == 0) {return BI_RC;}
-    return BI_NOT_BI;
-}
-
-// This function clears existing arguments and sets argc to 0 so that cmd_buff can have new values when the next command is given
-int clear_cmd_buff(cmd_buff_t *cmd_buff)
-{
-	for (int i = 0; i < cmd_buff->argc; i++) {
-		free(cmd_buff->argv[i]);
-		cmd_buff->argv[i] = NULL;
-	}
-	
-	cmd_buff->argc = 0;
-	if (cmd_buff->_cmd_buffer) {
-		cmd_buff->_cmd_buffer[0] = '\0';
-	}
-	return OK;
-}
 
 // This function removes quotes from arguments before adding it to the _cmd_buffer
 void remove_quotes(cmd_buff_t *cmd_buff) 
@@ -239,70 +196,108 @@ void remove_quotes(cmd_buff_t *cmd_buff)
 	}
 }
 
-int exec_cmd(char *cmd_buff, cmd_buff_t *cmd, int *previous_rc)
+
+Built_In_Cmds exec_non_bic(cmd_buff_t *cmd, int *previous_rc)
 {
-    int rc = 0;
-    cmd_buff[strcspn(cmd_buff, "\n")] = '\0';
-    if(strcmp(cmd_buff, "") == 0){ printf(CMD_WARN_NO_CMD); return rc;}
-    remove_whitespace(cmd_buff);
-    if(strlen(cmd_buff) == 0){ printf(CMD_WARN_NO_CMD); rc = WARN_NO_CMDS; return rc; }
-    rc = build_cmd_buff(cmd_buff, cmd);
-    if(rc != OK) { *previous_rc = rc; clear_cmd_buff(cmd); return rc; }
-    remove_quotes(cmd); //if one of the args has quotes remove them in the buffer
-    rc = alloc_cmd_buffer(cmd); //populate _cmd_buffer
-    if(rc != OK) {*previous_rc = rc; clear_cmd_buff(cmd); return rc; }
-    
-    
+	int f_result, c_result;
+        f_result = fork();
+        if (f_result < 0){
+                perror("fork error");
+                return ERR_EXEC_CMD;
+        }
 
-    Built_In_Cmds bic = match_command(cmd->argv[0]);
-    if(bic == BI_CMD_EXIT){ free_cmd_buff(cmd); exit(0); }
-    if(bic != BI_NOT_BI)
-    {
-           if(exec_built_in_cmd(cmd, bic, previous_rc) == BI_NOT_BI){ exec_non_bic(cmd, previous_rc);
-								       }
-    }else{
-            exec_non_bic(cmd, previous_rc);
-    }
-    
-    clear_cmd_buff(cmd);
+        if (f_result == 0){
+                int rc;
 
-    return OK;
+
+                rc = execvp(cmd->argv[0], cmd->argv);
+                if (rc < 0){
+                        rc = errno;
+                        if(rc == ENOENT) { printf("Command not found in PATH\n");}
+                        if(rc == EACCES) { printf("Permission denied\n");}
+                        if(rc == ENOMEM) { printf("No memory\n");}
+                        if(rc == EMFILE) { printf("Too many files open\n");}
+                        exit(rc);
+                }
+        }else{
+
+                wait(&c_result);
+                int exit_code = WEXITSTATUS(c_result);
+                *previous_rc = exit_code;
+
+        }
+
+        return BI_EXECUTED;
+
 }
+
+
+Built_In_Cmds match_command(const char *input)
+{
+    if (strcmp(input, EXIT_CMD) == 0) { return BI_CMD_EXIT;}
+    if (strcmp(input, "cd") == 0) { return BI_CMD_CD; }
+    if (strcmp(input, "dragon") == 0) {return BI_CMD_DRAGON;}
+    if (strcmp(input, "rc") == 0) {return BI_RC;}
+    return BI_NOT_BI;
+}
+
 int add_pipe_command(char *cmd, command_list_t *clist)
 {   
-    int rc = 0;
-  //TODO: handle errors for mem allocation 
+     int rc = OK;
      rc = build_cmd_buff(cmd, &clist->commands[clist->num]);
+     if(rc != OK){ return rc; }
      rc = alloc_cmd_buffer(&clist->commands[clist->num]);
-    return OK;
+    return rc;
 }
+
+// modified to handle double pipes with no args in between
 int build_cmd_list(char *cmd_line, command_list_t *clist)
 {
-    char *cmd_token = strtok(cmd_line, PIPE_STRING);
-    while(cmd_token != NULL)
-    {
-	
-	//printf("cmd token %s\n", cmd_token);
-	
-	if(clist->num >= CMD_MAX){
-		printf(CMD_ERR_PIPE_LIMIT, CMD_MAX);
-		return ERR_TOO_MANY_COMMANDS;
-	}
-	//printf("Before removing whitespace: %s\n", cmd_token);
-	remove_whitespace(cmd_token);	
-	//printf("After removing whitespace: %s\n", cmd_token);
-	if(strlen(cmd_token) == 0 || strlen(cmd_line) == 0){
-		return WARN_NO_CMDS;
-	}	
-	add_pipe_command(cmd_token, clist);
-	clist->num++;
-		
-	
-	cmd_token = strtok(NULL, PIPE_STRING);
-	
+    int rc = OK;
+    char *start = cmd_line;
+    char *end;
+    
+    while (*start) {
+        end = strchr(start, PIPE_CHAR);
+
+        if (!end) {
+            end = start + strlen(start);
+        }
+
+        if (end == start) {
+            return ERR_CMD_ARGS_BAD;
+        }
+
+        char saved_char = *end;
+        *end = '\0';
+
+        //printf("Before removing whitespace: [%s]\n", start);
+        if(remove_whitespace(start) == WARN_NO_CMDS){ printf("hi\n");return ERR_CMD_ARGS_BAD; }
+        //printf("After removing whitespace: [%s]\n", start);
+
+        if (strlen(start) == 0) {
+            *end = saved_char;
+	    return ERR_CMD_ARGS_BAD;
+        }
+
+        if (clist->num >= CMD_MAX) {
+            printf(CMD_ERR_PIPE_LIMIT, CMD_MAX);
+            return ERR_TOO_MANY_COMMANDS;
+        }
+
+        rc = add_pipe_command(start, clist);
+	if (rc != OK) {
+            *end = saved_char;
+            return rc;
+        }
+        clist->num++;
+
+        *end = saved_char;
+        start = end + 1;
     }
+
     //print_clist(clist);
-    return OK;
+    return rc;
 }
 
 void free_clist(command_list_t *clist)
@@ -320,6 +315,7 @@ void free_clist(command_list_t *clist)
 
 int exec_pipe_commands(command_list_t *clist)
 {
+    int rc = OK;
     int num_cmds = clist->num;
     pid_t pids[num_cmds];
     int pipes[num_cmds - 1][2];
@@ -361,7 +357,10 @@ int exec_pipe_commands(command_list_t *clist)
 
         	execvp(clist->commands[i].argv[0], clist->commands[i].argv);
         	perror("execvp");
+		
+		rc = ERR_CMD_ARGS_BAD;
         	exit(EXIT_FAILURE);
+
 	}        
     }
     for(int i = 0; i < num_cmds - 1; i++) 
@@ -369,26 +368,63 @@ int exec_pipe_commands(command_list_t *clist)
         close(pipes[i][0]);
         close(pipes[i][1]);
     }
-
-    for(int i = 0; i < num_cmds; i++) 
+    //check if any children failed to update rc 
+    int status = 0;
+    for (int i = 0; i < num_cmds; i++)
     {
-        waitpid(pids[i], NULL, 0);
+        waitpid(pids[i], &status, 0);
+        if (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_FAILURE)
+        {
+            rc = ERR_CMD_ARGS_BAD;
+        }
     }
-    return OK;	
+    
+
+    return rc;	
 }
 
+int exec_cmd(char *cmd_buff, cmd_buff_t *cmd, int *previous_rc)
+{
+    int rc = 0;
+    cmd_buff[strcspn(cmd_buff, "\n")] = '\0';
+    if(strcmp(cmd_buff, "") == 0){ printf(CMD_WARN_NO_CMD); return rc;}
+    remove_whitespace(cmd_buff);
+    if(strlen(cmd_buff) == 0){ printf(CMD_WARN_NO_CMD); rc = WARN_NO_CMDS; return rc; }
+    rc = build_cmd_buff(cmd_buff, cmd);
+    //print_cmd_buff(cmd);
+    if(rc != OK) { *previous_rc = rc; free_cmd_buff(cmd);//clear_cmd_buff(cmd); 
+							 return rc; }
+    remove_quotes(cmd); //if one of the args has quotes remove them in the buffer
+    rc = alloc_cmd_buffer(cmd); //populate _cmd_buffer
+    if(rc != OK) {*previous_rc = rc; free_cmd_buff(cmd);//clear_cmd_buff(cmd); 
+							return rc; }
 
+
+
+    Built_In_Cmds bic = match_command(cmd->argv[0]);
+    if(bic == BI_CMD_EXIT){ free_cmd_buff(cmd); 
+			    return OK_EXIT; }
+    if(bic != BI_NOT_BI)
+    {
+           if(exec_built_in_cmd(cmd, bic, previous_rc) == BI_NOT_BI){ exec_non_bic(cmd, previous_rc);
+                                                                       }
+    }else{
+            exec_non_bic(cmd, previous_rc);
+    }
+    free_cmd_buff(cmd);
+    return OK;
+}
 
 int exec_local_cmd_loop(){
     char *cmd_buff= malloc(sizeof(char) * SH_CMD_MAX);
      int rc = 0;
      int previous_rc = 0;
-     cmd_buff_t *cmd = malloc(sizeof(cmd_buff_t));
-      if(cmd == NULL) { return ERR_MEMORY; }
-      cmd->argc = 0;
+     
+      
       if(cmd_buff == NULL) { return ERR_MEMORY; }
       while(1)
       {
+	
 	printf("%s", SH_PROMPT);
 	if(fgets(cmd_buff, SH_CMD_MAX, stdin) == NULL)
 	{
@@ -403,12 +439,19 @@ int exec_local_cmd_loop(){
 	}
 	if(strchr(cmd_buff, PIPE_CHAR) == NULL)
 	{
+		cmd_buff_t *cmd = calloc(1, sizeof(cmd_buff_t));
+        	if(cmd == NULL) { return ERR_MEMORY; }
+        	cmd->argc = 0;
 		rc = exec_cmd(cmd_buff, cmd, &previous_rc);
+			
+		if(rc == OK_EXIT){ free(cmd_buff); 
+				   exit(0);}
 	}else{
 		command_list_t *clist = calloc(1, sizeof(command_list_t));
             	clist->num = 0;
 		rc = build_cmd_list(cmd_buff, clist);
-		if(rc != OK){ previous_rc = rc; }else {exec_pipe_commands(clist); }
+		if(rc != OK){ previous_rc = rc; }else {rc = exec_pipe_commands(clist); }
+		if(rc != OK){ previous_rc = rc;}
 		free_clist(clist);
 	}
       }

@@ -194,4 +194,104 @@ EOF
 
 }
 
+@test "too many pipes" {
+	run ./dsh <<EOF
+echo "hello world" | tr ' ' '-' | tr 'a-z' 'A-Z' | rev | cut -c1-5 | tac | sed 's/O/X/' | tr -d 'L' | cat
+rc
+EOF
+	stripped_output=$(echo "$output" | tr -d '[:space:]')
+        expected_output="dsh3>error:pipinglimitedto8commandsdsh3>-2dsh3>cmdloopreturned0"
+        echo "Captured stdout:"
+        echo "Output: $output"
+        echo "Exit Status: $status"
+        echo "${stripped_output} -> ${expected_output}"
 
+
+        [ "$stripped_output" = "$expected_output" ]
+        [ "$status" -eq 0 ]
+
+}
+
+@test "exact pipe limit succeeds" {
+	run ./dsh <<EOF
+echo "Hello World" | cat | cat | cat | cat | cat | cat | cat
+rc
+EOF
+	stripped_output=$(echo "$output" | tr -d '[:space:]')
+        expected_output='"HelloWorld"dsh3>dsh3>0dsh3>cmdloopreturned0'
+        echo "Captured stdout:"
+        echo "Output: $output"
+        echo "Exit Status: $status"
+        echo "${stripped_output} -> ${expected_output}"
+
+
+        [ "$stripped_output" = "$expected_output" ]
+        [ "$status" -eq 0 ]
+}
+@test "pipe with command that does not exist returns -4" {
+	run ./dsh <<EOF
+echo "hello" | fake_command
+rc
+EOF
+	stripped_output=$(echo "$output" | tr -d '[:space:]')
+        expected_output="execvp:Nosuchfileordirectorydsh3>dsh3>dsh3>-4dsh3>cmdloopreturned0"
+        echo "Captured stdout:"
+        echo "Output: $output"
+        echo "Exit Status: $status"
+        echo "${stripped_output} -> ${expected_output}"
+
+
+        [ "$stripped_output" = "$expected_output" ]
+        [ "$status" -eq 0 ]
+}
+
+@test "two pipes in a row with no argument in between" {
+	run ./dsh <<EOF
+echo hi || cat
+rc
+EOF
+	stripped_output=$(echo "$output" | tr -d '[:space:]')
+        expected_output="dsh3>dsh3>-4dsh3>cmdloopreturned0"
+        echo "Captured stdout:"
+        echo "Output: $output"
+        echo "Exit Status: $status"
+        echo "${stripped_output} -> ${expected_output}"
+
+
+        [ "$stripped_output" = "$expected_output" ]
+        [ "$status" -eq 0 ]
+}
+
+@test "two pipes with just a space in between" {
+	run ./dsh <<EOF
+echo hi | | cat
+rc
+EOF
+        stripped_output=$(echo "$output" | tr -d '[:space:]')
+        expected_output="dsh3>dsh3>-4dsh3>cmdloopreturned0"
+        echo "Captured stdout:"
+        echo "Output: $output"
+        echo "Exit Status: $status"
+        echo "${stripped_output} -> ${expected_output}"
+
+
+        [ "$stripped_output" = "$expected_output" ]
+        [ "$status" -eq 0 ]
+}
+
+@test "just a pipe fails" {
+	run ./dsh <<EOF
+|
+rc
+EOF
+	stripped_output=$(echo "$output" | tr -d '[:space:]')
+        expected_output="dsh3>dsh3>-4dsh3>cmdloopreturned0"
+        echo "Captured stdout:"
+        echo "Output: $output"
+        echo "Exit Status: $status"
+        echo "${stripped_output} -> ${expected_output}"
+
+
+        [ "$stripped_output" = "$expected_output" ]
+        [ "$status" -eq 0 ]
+}
