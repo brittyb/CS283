@@ -121,15 +121,34 @@ int boot_server(char *ifaces, int port){
     struct sockaddr_in addr;
 
     // TODO set up the socket - this is very similar to the demo code
-
+     svr_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (svr_socket == -1) {
+        perror("socket");
+        return ERR_RDSH_COMMUNICATION;
+    }
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = inet_addr(ifaces);
+    addr.sin_port = htons(port);
+    int enable=1;
+    setsockopt(svr_socket, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+    ret = bind(svr_socket, (const struct sockaddr *) &addr,
+               sizeof(struct sockaddr_in));
+    if (ret == -1) {
+        perror("bind");
+	close(svr_socket);
+        return ERR_RDSH_COMMUNICATION;
+    }
     /*
      * Prepare for accepting connections. The backlog size is set
      * to 20. So while one request is being processed other requests
      * can be waiting.
      */
+
+    
     ret = listen(svr_socket, 20);
     if (ret == -1) {
         perror("listen");
+	close(svr_socket);
         return ERR_RDSH_COMMUNICATION;
     }
 
@@ -184,6 +203,14 @@ int process_cli_requests(int svr_socket){
     while(1){
         // TODO use the accept syscall to create cli_socket 
         // and then exec_client_requests(cli_socket)
+	 cli_socket = accept(svr_socket, NULL, NULL);
+        if (cli_socket == -1) {
+            perror("accept");
+            return ERR_RDSH_COMMUNICATION;
+        }
+	rc = exec_client_requests(cli_socket);
+	close(cli_socket);
+	if (rc == OK_EXIT){ return OK_EXIT;}
     }
 
     stop_server(cli_socket);
@@ -246,16 +273,24 @@ int exec_client_requests(int cli_socket) {
 
     while(1) {
         // TODO use recv() syscall to get input
-
+	io_size = recv(cli_socket, io_buff, RDSH_COMM_BUFF_SZ, 0);
+	if (io_size == -1) {
+            perror("read error");
+            free(io_buff);
+	    return ERR_RDSH_SERVER;
+        }
+	io_buff[io_size] = '\0';
         // TODO build up a cmd_list
-
+	rc = build_cmd_list(io_buff, &cmd_list);
+ 	if(rc != OK){ free(io_buff); return ERR_RDSH_SERVER; }	 
         // TODO rsh_execute_pipeline to run your cmd_list
-
+	if(cmd_list.num == 0){ printf(CMD_ERR_RDSH_EXEC); continue; }
+	if(cmd_list.num >= 1) {rc = rsh_execute_pipeline(cli_socket, &cmd_list);}
         // TODO send appropriate respones with send_message_string
         // - error constants for failures
         // - buffer contents from execute commands
         //  - etc.
-
+	
         // TODO send_message_eof when done
     }
 
@@ -483,9 +518,9 @@ Built_In_Cmds rsh_built_in_cmd(cmd_buff_t *cmd)
 
     switch (ctype)
     {
-    // case BI_CMD_DRAGON:
-    //     print_dragon();
-    //     return BI_EXECUTED;
+    case BI_CMD_DRAGON:
+         print_dragon();
+         return BI_EXECUTED;
     case BI_CMD_EXIT:
         return BI_CMD_EXIT;
     case BI_CMD_STOP_SVR:
