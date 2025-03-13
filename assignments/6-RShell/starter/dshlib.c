@@ -118,6 +118,12 @@ int remove_whitespace(char *str)
 int add_argv(char *cmd_line, cmd_buff_t *cmd_buff, int start_index, int end_index)
 {
 
+	if (cmd_buff == NULL) {
+    		fprintf(stderr, "Error: cmd_buff is NULL\n");
+    		return ERR_MEMORY;
+	}
+	
+	if(cmd_buff == NULL) { printf("cmd buff null\n");}
 	if(cmd_buff->argc >= CMD_ARGV_MAX)
 	{
 		return ERR_CMD_ARGS_BAD;
@@ -296,7 +302,7 @@ int add_pipe_command(char *cmd, command_list_t *clist)
      rc = build_cmd_buff(cmd, &clist->commands[clist->num]);
      if(rc != OK){ return rc; }
      rc = alloc_cmd_buffer(&clist->commands[clist->num]);
-    return rc;
+     return rc;
 }
 
 // modified to handle double pipes with no args in between
@@ -305,7 +311,14 @@ int build_cmd_list(char *cmd_line, command_list_t *clist)
     int rc = OK;
     char *start = cmd_line;
     char *end;
-
+    if (strchr(cmd_line, '|') == NULL) 
+    {
+	
+	rc = add_pipe_command(cmd_line, clist);
+	clist->num++;
+	//print_clist(clist);
+	return rc;
+    }
     while (*start) {
         end = strchr(start, PIPE_CHAR);
 
@@ -321,7 +334,7 @@ int build_cmd_list(char *cmd_line, command_list_t *clist)
         *end = '\0';
 
         //printf("Before removing whitespace: [%s]\n", start);
-        if(remove_whitespace(start) == WARN_NO_CMDS){ printf("hi\n");return ERR_CMD_ARGS_BAD; }
+        if(remove_whitespace(start) == WARN_NO_CMDS){ return ERR_CMD_ARGS_BAD; }
         //printf("After removing whitespace: [%s]\n", start);
 
         if (strlen(start) == 0) {

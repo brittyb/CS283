@@ -49,7 +49,6 @@
 int start_server(char *ifaces, int port, int is_threaded){
     int svr_socket;
     int rc;
-	printf("starting server\n");
     //
     //TODO:  If you are implementing the extra credit, please add logic
     //       to keep track of is_threaded to handle this feature
@@ -119,14 +118,12 @@ int boot_server(char *ifaces, int port){
     int ret;
 
     struct sockaddr_in addr;
-        printf("booting server\n");
     // TODO set up the socket - this is very similar to the demo code
      svr_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (svr_socket < 0) {
         perror("socket");
         return ERR_RDSH_COMMUNICATION;
     }
-    printf("Server socket created successfully, svr_socket: %d\n", svr_socket);
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = inet_addr(ifaces);
@@ -149,13 +146,12 @@ int boot_server(char *ifaces, int port){
      */
 
 
-    ret = listen(svr_socket, 5);
+    ret = listen(svr_socket, 20);
     if (ret < 0) {
         perror("listen");
         close(svr_socket);
         return ERR_RDSH_COMMUNICATION;
     }
-        printf("end of booting\n");
     return svr_socket;
 }
 
@@ -203,26 +199,20 @@ int boot_server(char *ifaces, int port){
 int process_cli_requests(int svr_socket){
     int     cli_socket;
     int     rc = OK;    
-    struct sockaddr_in client_addr;
-    socklen_t client_len = sizeof(client_addr);    
     while(1){
-	    printf("processing requests\n");
         // TODO use the accept syscall to create cli_socket 
         // and then exec_client_requests(cli_socket)
-	cli_socket = accept(svr_socket, (struct sockaddr*)&client_addr, &client_len);
+	cli_socket = accept(svr_socket, NULL, NULL);
         if (cli_socket < 0) {
             perror("accept");
-	     printf("accept failed\n");
             rc = ERR_RDSH_COMMUNICATION;
 	    break;
         }
-	printf("exec client requests\n");
-	//rc = exec_client_requests(cli_socket);
-	printf("exec rc: %d\n", rc);
+	
+	rc = exec_client_requests(cli_socket);
 	close(cli_socket);
-	if (rc == OK_EXIT){ return OK_EXIT;}
+	if (rc == OK_EXIT){ printf(RCMD_MSG_SVR_STOP_REQ); break;}
     }
-	printf("ending process_cli_requests\n");
     stop_server(cli_socket);
     return rc;
 }
@@ -271,48 +261,69 @@ int process_cli_requests(int svr_socket){
 int exec_client_requests(int cli_socket) {
     int io_size;
     command_list_t cmd_list;
-    int rc;
+    
+    
+    int rc = OK;
     int cmd_rc;
     int last_rc;
     char *io_buff;
-
     io_buff = malloc(RDSH_COMM_BUFF_SZ);
     if (io_buff == NULL){
         return ERR_RDSH_SERVER;
     }
-
-    while(1) {
-        // TODO use recv() syscall to get input
+    while (rc == OK)
+    {
+        memset(&cmd_list, 0, sizeof(command_list_t));
+        cmd_list.num = 0;
+	// TODO use recv() syscall to get input
 	io_size = recv(cli_socket, io_buff, RDSH_COMM_BUFF_SZ, 0);
 	if (io_size < 0) 
 	{
             perror("read error");
-            free(io_buff);
-	    return ERR_RDSH_SERVER;
+             rc = ERR_RDSH_SERVER; 
+            break;
         }
+	
 	if(io_size == 0)
 	{
-		free(io_buff);
-		return ERR_RDSH_SERVER;
+		
+		rc =  ERR_RDSH_SERVER;
+		break;
 	}
-        last_rc	= ((char)io_buff[io_size-1] == RDSH_EOF_CHAR) ? 1 : 0;
+	
+        last_rc = ((char)io_buff[io_size-1] == RDSH_EOF_CHAR) ? 1 : 0;
 
-    	if (last_rc){
+    	if (last_rc)
+	{
         	io_buff[io_size-1] = '\0'; //remove the marker and replace with a null
                                   //this makes string processing easier
     	}
-    	printf("%.*s", (int)io_size, io_buff);
-	if (last_rc) {break;}
+        printf(RCMD_MSG_SVR_EXEC_REQ, io_buff);
+    	
+	
         // TODO build up a cmd_list
 	rc = build_cmd_list(io_buff, &cmd_list);
- 	if(rc != OK){ free(io_buff); return ERR_RDSH_SERVER; }	 
+ 	if(rc != OK){ break; }	 
         // TODO rsh_execute_pipeline to run your cmd_list
 	if(cmd_list.num == 0){ printf(CMD_ERR_RDSH_EXEC); continue; }
 	Built_In_Cmds bi_cmd = rsh_match_command(cmd_list.commands[0].argv[0]);
+	
+	if(bi_cmd == BI_CMD_EXIT) 
+	{
+	    rc = OK;
+	    break;
+        }
+        if(bi_cmd == BI_CMD_STOP_SVR)
+	{
+	    rc = OK_EXIT;
+	    break;
+	}	
 	if(bi_cmd == BI_NOT_BI)
 	{
 		rc = rsh_execute_pipeline(cli_socket, &cmd_list);
+		if(rc != OK) { break; }
 	}else{
+		
 		rsh_built_in_cmd(&cmd_list.commands[0]);
 	}
 	// TODO send appropriate respones with send_message_string
@@ -321,15 +332,16 @@ int exec_client_requests(int cli_socket) {
         //  - etc.
 	
         // TODO send_message_eof when done
-	for (int i = 0; i < cmd_list.num; i++) 
+	
+	if(send_message_eof(cli_socket) != OK)
 	{
-		send_message_string(cli_socket, cmd_list.commands[i]._cmd_buffer);
+		rc =  ERR_RDSH_SERVER;
+		break;
 	}
-	send_message_eof(cli_socket);
-	free(io_buff);
+	
     }
-
-    return WARN_RDSH_NOT_IMPL;
+     free(io_buff);
+    return rc;
 }
 
 /*
@@ -381,7 +393,7 @@ int send_message_string(int cli_socket, char *buff){
     int rc = send(cli_socket, buff, len, 0);
     if(rc < 0)
     {
-        return ERR_RDSH_COMMUNICATION;
+	    return ERR_RDSH_COMMUNICATION;
     }
     rc = send_message_eof(cli_socket);
     return rc;
