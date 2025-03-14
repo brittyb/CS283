@@ -16,7 +16,7 @@
 
 #include "dshlib.h"
 #include "rshlib.h"
-
+#include <ctype.h>
 
 /*
  * start_server(ifaces, port, is_threaded)
@@ -211,7 +211,8 @@ int process_cli_requests(int svr_socket){
 	
 	rc = exec_client_requests(cli_socket);
 	close(cli_socket);
-	if (rc == OK_EXIT){ printf(RCMD_MSG_SVR_STOP_REQ); break;}
+	if (rc == OK_EXIT){ printf(RCMD_MSG_SVR_STOP_REQ);
+ break;}
     }
     stop_server(cli_socket);
     return rc;
@@ -258,13 +259,26 @@ int process_cli_requests(int svr_socket){
  *      ERR_RDSH_COMMUNICATION:  A catch all for any socket() related send
  *                or receive errors. 
  */
+
+bool is_all_whitespace(const char *str) {
+  if (str == NULL) {
+    return true;
+  }
+
+  while (*str != '\0') {
+    if (!isspace((unsigned char)*str)) {
+      return false;
+    }
+    str++;
+  }
+  return true;
+}
 int exec_client_requests(int cli_socket) {
     int io_size;
     command_list_t cmd_list;
     
     
     int rc = OK;
-    int cmd_rc;
     int last_rc;
     char *io_buff;
     io_buff = malloc(RDSH_COMM_BUFF_SZ);
@@ -299,13 +313,16 @@ int exec_client_requests(int cli_socket) {
                                   //this makes string processing easier
     	}
         printf(RCMD_MSG_SVR_EXEC_REQ, io_buff);
-    	
-	
+        	
+	if(strcmp(io_buff, "") == 0 || is_all_whitespace(io_buff)) {
+		send_message_string(cli_socket, CMD_ERR_RDSH_EXEC); continue;
+	}	
         // TODO build up a cmd_list
 	rc = build_cmd_list(io_buff, &cmd_list);
- 	if(rc != OK){ break; }	 
+ 	if(rc != OK){ send_message_string(cli_socket, "error building cmd list\n"); rc = OK;
+       continue;	}	 
         // TODO rsh_execute_pipeline to run your cmd_list
-	if(cmd_list.num == 0){ printf(CMD_ERR_RDSH_EXEC); continue; }
+	if(cmd_list.num == 0){ send_message_string(cli_socket, CMD_ERR_RDSH_EXEC); }
 	Built_In_Cmds bi_cmd = rsh_match_command(cmd_list.commands[0].argv[0]);
 	
 	if(bi_cmd == BI_CMD_EXIT) 
@@ -321,7 +338,7 @@ int exec_client_requests(int cli_socket) {
 	if(bi_cmd == BI_NOT_BI)
 	{
 		rc = rsh_execute_pipeline(cli_socket, &cmd_list);
-		if(rc != OK) { break; }
+		if(rc != OK) { send_message_string(cli_socket, "Command failed\n"); rc = OK; }
 	}else{
 		
 		rsh_built_in_cmd(&cmd_list.commands[0]);
@@ -441,8 +458,7 @@ int send_message_string(int cli_socket, char *buff){
 int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
     int pipes[clist->num - 1][2];  // Array of pipes
     pid_t pids[clist->num];
-    int  pids_st[clist->num];         // Array to store process IDs
-    Built_In_Cmds bi_cmd; 
+    int  pids_st[clist->num];         // Array to store process IDs 
     int exit_code;
 
     // Create all necessary pipes
@@ -484,10 +500,11 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
         	}
 
         	execvp(clist->commands[i].argv[0], clist->commands[i].argv);
+		
         	perror("execvp");
 		
 		exit_code = ERR_CMD_ARGS_BAD;
-        	exit(EXIT_FAILURE);
+        	exit(exit_code);
 
 	}        
         // TODO HINT you can dup2(cli_sock with STDIN_FILENO, STDOUT_FILENO, etc.
